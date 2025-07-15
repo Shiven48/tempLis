@@ -1,0 +1,2 @@
+LOG_FILE_PATH = "logs/app.log"
+MAX_FRAME_BODY_SIZE = 240

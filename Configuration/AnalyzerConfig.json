@@ -1,0 +1,98 @@
+{
+  "BS_240": {
+    "isSerial": true,
+    "isSocket": false,
+    "config": {
+      "COM": "COM2",
+      "baudrate": 9600,
+      "parity": "N",
+      "stopbits": 1,
+      "bytesize": 8,
+      "timeout": 1
+    },
+    "dispatcher": "C:/Users/Sheve/Desktop/Labridge/Source code/app/dispatchers/bs240_dispatcher.py",
+    "records": {
+      "header": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "H" },
+          { "name": "delimeter", "index": 1, "type": "constantField", "default": "\\^&" },
+          { "name": "sender_name_id", "index": 4, "type": "componentField",
+            "component": {
+              "name": "AddressComponent",
+              "fields": [
+                { "name": "sender_name", "type": "textField" },
+                { "name": "software_version", "type": "textField" },
+                { "name": "sequence_number", "type": "textField" }
+              ]
+            }
+          },
+          { "name": "Processing_Id", "index": 11, "type": "setField", "values": ["PR", "QR", "CR", "RQ", "QA", "SA"] },
+          { "name": "protocol_version", "index": 12, "type": "textField", "length":10},
+          { "name": "timestamp", "index": 13, "type": "dateTimeField", "format": "%Y%m%d%H%M%S", "required":"True" }
+        ]
+      },
+      "patient": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "P" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "patient_id", "index": 3, "type": "textField", "length": 25 },
+          { "name": "patient_name", "index": 5, "type": "componentField", "component": {
+            "name": "PatientNameComponent",
+            "fields": [
+              { "name": "last_name", "type": "textField", "length": 20 },
+              { "name": "first_name", "type": "textField", "length": 20 },
+              { "name": "middle_initial", "type": "textField", "length": 1 }
+            ]
+          } },
+          { "name": "age_info", "index": 7, "type": "componentField", "component": {
+            "name": "PatientAgeComponent",
+            "fields": [
+              { "name": "birth_date", "type": "textField", "length": 8 },
+              { "name": "age", "type": "integerField", "length": 6 },
+              { "name": "age_unit", "type": "setField", "values": ["Y", "M", "W", "D", "H"], "default": "Y", "length": 1 }
+            ]
+          } },
+          { "name": "patient_sex", "index": 8, "type": "setField", "values": ["M", "F", "U"], "length": 1 },
+          { "name": "patient_race", "index": 9, "type": "textField", "length": 20 },
+          { "name": "patient_address", "index": 10, "type": "textField", "length": 50 },
+          { "name": "patient_telephone", "index": 12, "type": "textField", "length": 13 },
+          { "name": "special_field_1", "index": 14, "type": "textField", "length": 30 },
+          { "name": "body_surface_area", "index": 15, "type": "textField", "length": 20 },
+          { "name": "patient_diagnosis", "index": 20, "type": "textField", "length": 50 },
+          { "name": "location", "index": 25, "type": "textField", "length": 10 },
+          { "name": "alt_diag_code", "index": 26, "type": "textField", "length": 10 }
+        ]
+      },
+      "order":{
+        "fields": [
+          { "name": "record_type_id", "index": 0 },
+          { "name": "sequence_number", "index": 1 },
+          { "name": "order_id", "index": 2 },
+          { "name": "specimen_id", "index": 3 },
+          { "name": "order_time", "index": 5 }
+        ]
+      }
+    }
+  },
+  "ERBA_ELITE_580": {
+    "isSerial": false,
+    "isSocket": true,
+    "config": {
+      "ip": "192.168.0.10",  
+      "port": 15200
+    },
+    "dispatcher": "C:/Users/Sheve/Desktop/Labridge/Source code/app/dispatchers/erba_elite580_dispatcher.py",
+    "records": {
+      "header": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "value": "H" },
+          { "name": "delimeter", "index": 1, "value": "\\^&" },
+          { "name": "sender_name", "index": 4 },
+          { "name": "protocol_version", "index": 12 },
+          { "name": "Processing_Id", "index": 11, "allowed_values": ["PR", "QR", "CR", "RQ", "QA", "SA"] },
+          { "name": "timestamp", "index": 13, "format": "%Y%m%d%H%M%S" }
+        ]
+      }
+    }
+  }
+}

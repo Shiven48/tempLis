@@ -1,0 +1,90 @@
+2025-07-14 06:57:52,745 - SocketDispatcher.py - DEBUG - Adding channel <__main__.AstmServer at 0x1fa5858ae10>
+2025-07-14 06:57:52,753 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-14 06:57:52,754 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-14 06:58:38,506 - AstmServer.py - INFO - New client connection from 127.0.0.1:59408
+2025-07-14 06:58:38,506 - SocketDispatcher.py - DEBUG - Adding channel <core.Handler.RequestHandler at 0x1fa57d7b320>
+2025-07-14 06:58:47,083 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x05'
+2025-07-14 06:58:47,083 - Handler.py - DEBUG - Received the enq on server
+2025-07-14 06:58:47,083 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,187 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x021H|\\^&|||Mindry^^|||||||PR|1394-97|20250701173106\x03AA\r\n'
+2025-07-14 06:58:47,193 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,293 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x022P|1||||^^||^^|U||||||||||||||||||||||||||\x03FB\r\n'
+2025-07-14 06:58:47,293 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,405 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x023O|1|9^^|25142231|MGII^Magnesium^^\\CA^Calcium^^\\SGPT^Alanine Aminotransferase^^\\SGOT^Aspartate Aminotransferase^^\\^AST/ALT^^|R|20250701145310|20250701145245|||||||20250701145245|serum||||||||||F|||||\x030A\r\n'
+2025-07-14 06:58:47,405 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,521 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x024R|1|MGII^Magnesium^^F|2.199529^^^^|mg/dL|2.2^2.2|N||F|2.199529^^^^|0|20250701154348||Mindry^1234567890\x0309\r\n'
+2025-07-14 06:58:47,524 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,630 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x025L|1|N\x03FB\r\n'
+2025-07-14 06:58:47,631 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 06:58:47,743 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] >>> b'\x04'
+2025-07-14 06:58:47,743 - SocketDispatcher.py - DEBUG - [127.0.0.1:59408] <<< b'\x06'
+2025-07-14 07:02:09,658 - AstmServer.py - INFO - Server shutting down...
+2025-07-14 07:02:09,662 - AstmServer.py - INFO - closing the session from server
+2025-07-14 07:02:09,663 - SocketDispatcher.py - DEBUG - Closing channel 840:<__main__.AstmServer localhost:15200 at 0x1fa5858ae10>
+2025-07-14 15:18:17,214 - SocketDispatcher.py - DEBUG - Adding channel <__main__.AstmServer at 0x15ec1753080>
+2025-07-14 15:18:17,218 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-14 15:18:17,219 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-14 15:20:10,454 - AstmServer.py - INFO - New client connection from 127.0.0.1:62743
+2025-07-14 15:20:10,455 - SocketDispatcher.py - DEBUG - Adding channel <core.Handler.RequestHandler at 0x15ec12cfcb0>
+2025-07-14 15:20:38,367 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x05'
+2025-07-14 15:20:38,367 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x05'
+2025-07-14 15:20:38,369 - Handler.py - DEBUG - Received the enq on server
+2025-07-14 15:20:38,369 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:38,472 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x021H|\\^&|||Mindry^^|||||||PR|1394-97|20250701173106\x03AA\r\n'
+2025-07-14 15:20:38,473 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x021H|\\^&|||Mindry^^|||||||PR|1394-97|20250701173106\x03AA\r\n'
+2025-07-14 15:20:38,487 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:38,579 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x022P|1||||^^||^^|U||||||||||||||||||||||||||\x03FB\r\n'
+2025-07-14 15:20:38,579 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x022P|1||||^^||^^|U||||||||||||||||||||||||||\x03FB\r\n'
+2025-07-14 15:20:38,580 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:38,702 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x023O|1|9^^|25142231|MGII^Magnesium^^\\CA^Calcium^^\\SGPT^Alanine Aminotransferase^^\\SGOT^Aspartate Aminotransferase^^\\^AST/ALT^^|R|20250701145310|20250701145245|||||||20250701145245|serum||||||||||F|||||\x030A\r\n'
+2025-07-14 15:20:38,702 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x023O|1|9^^|25142231|MGII^Magnesium^^\\CA^Calcium^^\\SGPT^Alanine Aminotransferase^^\\SGOT^Aspartate Aminotransferase^^\\^AST/ALT^^|R|20250701145310|20250701145245|||||||20250701145245|serum||||||||||F|||||\x030A\r\n'
+2025-07-14 15:20:38,704 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:38,822 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x024R|1|MGII^Magnesium^^F|2.199529^^^^|mg/dL|2.2^2.2|N||F|2.199529^^^^|0|20250701154348||Mindry^1234567890\x0309\r\n'
+2025-07-14 15:20:38,823 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x024R|1|MGII^Magnesium^^F|2.199529^^^^|mg/dL|2.2^2.2|N||F|2.199529^^^^|0|20250701154348||Mindry^1234567890\x0309\r\n'
+2025-07-14 15:20:38,826 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:38,938 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x025L|1|N\x03FB\r\n'
+2025-07-14 15:20:38,938 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x025L|1|N\x03FB\r\n'
+2025-07-14 15:20:38,939 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:20:39,056 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b'\x04'
+2025-07-14 15:20:39,056 - ASTMProtocol.py - INFO - The popped data from the inbox is: b'\x04'
+2025-07-14 15:20:39,056 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] <<< b'\x06'
+2025-07-14 15:28:58,344 - SocketDispatcher.py - DEBUG - [127.0.0.1:62743] >>> b''
+2025-07-14 15:28:58,346 - SocketDispatcher.py - INFO - [127.0.0.1:62743] Connection closed
+2025-07-14 15:28:58,347 - SocketDispatcher.py - DEBUG - Closing channel 940:<core.Handler.RequestHandler 127.0.0.1:62743 at 0x15ec12cfcb0>
+2025-07-14 16:55:56,252 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-14 16:55:56,253 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 11:13:53,439 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 11:13:53,469 - AstmServer.py - INFO - closing the session from server
+2025-07-15 21:22:55,858 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-15 21:22:55,859 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 21:23:18,338 - AstmServer.py - INFO - New client connection from 127.0.0.1:63290
+2025-07-15 21:23:24,723 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:27:44,721 - AstmServer.py - INFO - New client connection from 127.0.0.1:63314
+2025-07-15 21:27:48,309 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:28:11,492 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 21:28:11,493 - AstmServer.py - INFO - closing the session from server
+2025-07-15 21:30:41,318 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-15 21:30:41,318 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 21:30:49,597 - AstmServer.py - INFO - New client connection from 127.0.0.1:63329
+2025-07-15 21:30:51,125 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:31:18,380 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 21:31:18,380 - AstmServer.py - INFO - closing the session from server
+2025-07-15 21:31:20,404 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-15 21:31:20,404 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 21:31:26,408 - AstmServer.py - INFO - New client connection from 127.0.0.1:63332
+2025-07-15 21:31:28,681 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:31:28,681 - Handler.py - DEBUG - About to send ENQ
+2025-07-15 21:37:46,108 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 21:37:46,115 - AstmServer.py - INFO - closing the session from server
+2025-07-15 21:37:48,087 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-15 21:37:48,088 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 21:37:56,360 - AstmServer.py - INFO - New client connection from 127.0.0.1:51304
+2025-07-15 21:37:59,324 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:40:46,874 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 21:40:46,875 - AstmServer.py - INFO - closing the session from server
+2025-07-15 21:40:51,736 - AstmServer.py - INFO - Server starting on localhost:15200
+2025-07-15 21:40:51,737 - AstmServer.py - INFO - Press Ctrl+C to stop the server
+2025-07-15 21:41:15,492 - AstmServer.py - INFO - New client connection from 127.0.0.1:51502
+2025-07-15 21:41:25,920 - Handler.py - DEBUG - Received the enq on server
+2025-07-15 21:45:22,112 - AstmServer.py - INFO - Server shutting down...
+2025-07-15 21:45:22,112 - AstmServer.py - INFO - closing the session from server
