@@ -1,0 +1,220 @@
+{
+  "BS_240": {
+    "protocol": "astm",
+    "config": {
+      "isSerial": "true",
+      "isSocket": "false",
+      "COM": "COM2",
+      "baudrate": 9600,
+      "parity": "N",
+      "stopbits": 1,
+      "bytesize": 8,
+      "timeout": 1
+    },
+    "records": {
+      "header": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "H" },
+          { "name": "delimeter", "index": 1, "type": "constantField", "default": "\\^&" },
+          { "name": "sender_name_id", "index": 4, "type": "componentField", "component": { 
+              "name": "AddressComponent",
+              "fields": [
+                { "name": "sender_name", "index": 0, "type": "textField" },
+                { "name": "software_version", "index": 1, "type": "textField" },
+                { "name": "sequence_number", "index": 2, "type": "textField" }
+              ]
+            }
+          },
+          { "name": "Processing_Id", "index": 11, "type": "setField", "values": ["PR", "QR", "CR", "RQ", "QA", "SA"] },
+          { "name": "protocol_version", "index": 12, "type": "textField", "length": 10 },
+          { "name": "timestamp", "index": 13, "type": "dateTimeField", "format": "%Y%m%d%H%M%S", "required": true }
+        ]
+      },
+      "patient": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "P" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "patient_id", "index": 3, "type": "textField", "length": 25 },
+          { "name": "patient_name", "index": 5, "type": "componentField", "component": { 
+              "name": "PatientNameComponent",
+              "fields": [
+                { "name": "last_name", "index": 1, "type": "textField", "length": 20 },
+                { "name": "first_name", "index": 2, "type": "textField", "length": 20 },
+                { "name": "middle_initial", "index": 3, "type": "textField", "length": 1 }
+              ]
+            }
+          },
+          { "name": "age_info", "index": 7, "type": "componentField", "component": { 
+              "name": "PatientAgeComponent",
+              "fields": [
+                { "name": "birth_date", "index": 0, "type": "textField", "length": 8 },
+                { "name": "age", "index": 1, "type": "integerField", "length": 6 },
+                { "name": "age_unit", "index": 2, "type": "setField", "length": 1, "values": ["Y", "M", "W", "D", "H"], "default": "Y" }
+              ]
+            }
+          },
+          { "name": "patient_sex", "index": 8, "type": "setField", "values": ["M", "F", "U"], "length": 1 },
+          { "name": "patient_address", "index": 10, "type": "textField", "length": 50 },
+          { "name": "patient_diagnosis", "index": 18, "type": "textField", "length": 50 },
+          { "name": "location", "index": 25, "type": "textField", "length": 10 }
+        ]
+      },
+      "order": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "O" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "sample_position", "index": 2, "type": "componentField", "component": { 
+              "name": "SamplePositionComponent",
+              "fields": [
+                { "name": "sample_id", "index": 0, "type": "textField", "length": 20 }
+              ]
+            }
+          },
+          { "name": "instrument_id", "index": 3, "type": "textField", "length": 29 },
+          { "name": "assay_info", "index": 4, "type": "repeatedComponentField", "component": {
+              "name": "AssayInfoComponent",
+              "fields": [
+                { "name": "test_code", "index": 0, "type": "textField" },
+                { "name": "test_name", "index": 1, "type": "textField" }
+              ]
+            }
+          },
+          { "name": "priority", "index": 5, "type": "setField", "values": ["R", "S"] },
+          { "name": "requested_at", "index": 6, "type": "textField", "length": 14 },
+          { "name": "collected_at", "index": 7, "type": "textField", "length": 14 },
+          { "name": "received_at", "index": 14, "type": "textField", "length": 14 },
+          { "name": "specimen_type", "index": 15, "type": "setField", "values": ["serum", "urine", "CSF", "plasma", "timed", "other", "blood", "amniotic", "urethral", "saliva", "cervical", "synovial"], "length": 10 },
+          { "name": "ordering_physician_info", "index": 16, "type": "componentField", "component": { 
+              "name": "OrderingPhysicianComponent",
+              "fields": [
+                { "name": "last_name", "index": 1, "type": "textField", "length": 20 },
+                { "name": "first_name", "index": 2, "type": "textField", "length": 20 }
+              ]
+            }
+          },
+          { "name": "physician_phone", "index": 17, "type": "textField", "length": 30 },
+          { "name": "report_type", "index": 25, "type": "setField", "values": ["O", "Q", "F"], "length": 1 }
+        ]
+      },
+      "result": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "R" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "assay_info", "index": 2, "type": "componentField", "component": { 
+              "name": "AssayResultComponent",
+              "fields": [
+                { "name": "assay_number", "index": 0, "type": "textField", "length": 12 },
+                { "name": "assay_name", "index": 1, "type": "textField", "length": 20 },
+                { "name": "result_type", "index": 3, "type": "setField", "values": ["I", "F"], "length": 1 }
+              ]
+            }
+          },
+          { "name": "result_value", "index": 3, "type": "componentField", "component": { 
+              "name": "ResultValueComponent",
+              "fields": [
+                { "name": "measurement_value", "index": 0, "type": "decimalField", "length": 14 },
+                { "name": "interpretation", "index": 1, "type": "textField", "length": 15 }
+              ]
+            }
+          },
+          { "name": "units", "index": 4, "type": "textField", "length": 12 },
+          { "name": "reference_range", "index": 5, "type": "componentField", "component": { 
+              "name": "MeasurementComponent",
+              "fields": [
+                { "name": "range_high", "index": 0, "type": "decimalField", "length": 12 },
+                { "name": "range_low", "index": 1, "type": "decimalField", "length": 12 }
+              ]
+            }
+          },
+          { "name": "abnormal_flag", "index": 6, "type": "setField", "values": ["L", "H", "N"], "length": 1 },
+          { "name": "abnormal_nature", "index": 7, "type": "textField", "length": 15 },
+          { "name": "result_status", "index": 8, "type": "setField", "values": ["F"], "length": 1 },
+          { "name": "completed_at", "index": 12, "type": "textField", "length": 14 },
+          { "name": "instrument_info", "index": 13, "type": "componentField", "component": { 
+              "name": "InstrumentComponent",
+              "fields": [
+                { "name": "sender_name", "index": 0, "type": "textField", "length": 16 }
+              ]
+            }
+          }
+        ]
+      },
+      "comment": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "C" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "comment_text", "index": 3, "type": "textField", "length": 90 },
+          { "name": "comment_type", "index": 4, "type": "setField", "values": ["G", "I"], "length": 1 }
+        ]
+      },
+      "terminator": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "L" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "termination_code", "index": 2, "type": "setField", "values": ["N", "I", "Q"], "length": 1 }
+        ]
+      }
+    }
+  },
+  "ERBA_ELITE_580": {
+    "protocol": "astm",
+    "config": {
+      "isSerial": false,
+      "isSocket": true,
+      "ip": "192.168.0.10",  
+      "port": 15200
+    },
+    "records": {
+      "header": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "H" },
+          { "name": "delimeter", "index": 1, "type": "constantField", "default": "\\^&" },
+          { "name": "sender_name", "index": 4, "type": "textField" },
+          { "name": "Processing_Id", "index": 11, "type": "setField", "values": ["PR", "QR", "CR", "RQ", "QA", "SA"] },
+          { "name": "protocol_version", "index": 12, "type": "textField" },
+          { "name": "timestamp", "index": 13, "type": "dateTimeField", "format": "%Y%m%d%H%M%S" }
+        ]
+      },
+      "patient": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "P" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "patient_id", "index": 3, "type": "textField", "length": 25 },
+          { "name": "patient_sex", "index": 8, "type": "setField", "values": ["M", "F", "U"], "length": 1 }
+        ]
+      },
+      "result": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "R" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "assay_info", "index": 2, "type": "componentField", "component": { 
+              "name": "AssayResultComponent",
+              "fields": [
+                { "name": "assay_number", "index": 0, "type": "textField", "length": 12 },
+                { "name": "assay_name", "index": 1, "type": "textField", "length": 20 }
+              ]
+            }
+          },
+          { "name": "result_value", "index": 3, "type": "componentField", "component": { 
+              "name": "ResultValueComponent",
+              "fields": [
+                { "name": "measurement_value", "index": 0, "type": "decimalField", "length": 14 }
+              ]
+            }
+          },
+          { "name": "units", "index": 4, "type": "textField", "length": 12 },
+          { "name": "abnormal_flag", "index": 6, "type": "setField", "values": ["L", "H", "N"], "length": 1 },
+          { "name": "result_status", "index": 8, "type": "setField", "values": ["F"], "length": 1 },
+          { "name": "completed_at", "index": 12, "type": "textField", "length": 14 }
+        ]
+      },
+      "terminator": {
+        "fields": [
+          { "name": "record_type_id", "index": 0, "type": "constantField", "default": "L" },
+          { "name": "sequence_number", "index": 1, "type": "integerField", "length": 3 },
+          { "name": "termination_code", "index": 2, "type": "setField", "values": ["N", "I", "Q"], "length": 1 }
+        ]
+      }
+    }
+  }
+}
