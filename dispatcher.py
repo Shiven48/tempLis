@@ -18,13 +18,7 @@ class Disp(BaseRecordsDispatcher):
             "patient": None,
             "order": None,
             "results": []
-        }
-    
-    # def _createProfile(self, profile):
-    #     if profile:
-    #         self.profile = profile
-    #     else:
-    #         self.processor = 
+        } 
 
     def on_header(self, record):
         logger.info("Header received")
