@@ -1,63 +1,53 @@
 import asyncio
+import datetime
+import os
+from pathlib import Path
 import threading
 import time
-from typing import Optional, Callable
+from typing import Dict, Optional, Callable
+from constants import ERBA_YAML_PATH
 from hl7.mllp import start_hl7_server, HL7StreamReader, HL7StreamWriter
-from datetime import datetime
 
+from middleware.config_loader import ConfigLoader
+from middleware.logger import GuiLoggerRegistryInstance, register_loggers
 from middleware.parser import HL7Parser
 from middleware.validator import DataValidator
 from middleware.models import AnalyzerConfig, ErbaMessage
 from middleware.api import close_api_service
 
 class DataHandler:
-    def __init__(self, config: AnalyzerConfig, gui_log=None, error_log=None, network_log=None, serial_log=None):
+    def __init__(self, config: AnalyzerConfig):
         self.config = config
-        self.validator = DataValidator(config)
-        self.gui_log = gui_log
-        self.error_log = error_log
-        self.network_log = network_log
-        self.serial_log = serial_log
-
-        yaml_path = getattr(config, 'yaml_config_path', f'Configuration/{config.name}.yaml')
-        self.parser = HL7Parser(yaml_path)
+        self.validator = DataValidator(self.config)
+        self.yaml_path = ERBA_YAML_PATH
+        self.parser = HL7Parser(self.yaml_path)
 
     def process_data(self, raw_data: str) -> Optional[ErbaMessage]:
         """Process raw data through the pipeline"""
-        try:
-            if self.gui_log:
-                self.gui_log(f"[Handler] Processing data for {self.config.name}")
-            
-            # Step 1: Parse the data
+        try:            
+            # Parse the data
             parsed_data = self.parser.parse_with_config(raw_data)
             
-            if 'error' in parsed_data:
-                if self.error_log:
-                    self.error_log(f"[Handler] Parse error: {parsed_data['error']}")
+            if len(parsed_data['parsing_errors']) != 0:
                 return None
-            
-            if self.gui_log:
-                self.gui_log(f"[Handler] Parsed {len(parsed_data.get('test_results', []))} test results")
-            
-            # Step 2: Validate and create objects
+                                    
+            # Validate and create objects
             validated_message = self.validator.validate_and_create_objects(parsed_data)
             
             if validated_message:
-                if self.gui_log:
-                    self.gui_log(f"[Handler] Validation successful")
+                # if self.gui_log_callback:
+                #     self.gui_log_callback(f"[Handler] Validation successful")
                 return validated_message
             else:
-                if self.error_log:
-                    self.error_log(f"[Handler] Validation failed")
+                # if self.gui_error_callback:
+                #     self.gui_error_callback(f"[Handler] Validation failed")
                 return None
                 
         except Exception as e:
-            # Terminal
-            if self.error_log:
-                self.error_log(f"[Handler] Processing error: {e}")
+            # if self.gui_error_callback:
+            #     self.gui_error_callback(f"[Handler] Processing error: {e}")
             return None
-
-
+        
 class MiddlewareEngine:
     """
     Production middleware engine with HL7 MLLP server integration
@@ -69,60 +59,37 @@ class MiddlewareEngine:
         self.server_task = None
         self.is_running = False
         self.analyzer_ready = False
-        self.gui_log_callback = None
-        self.gui_error_callback = None
-        self.gui_network_callback = None
-        self.gui_serial_callback = None
         self.handler = None
         self.loop = None
         self.server_thread = None
+        self.gui_loggers = {}
+        self.yaml_path = ERBA_YAML_PATH
         
         # Your analyzer configurations
-        self.analyzer_configs = {
-            "Erba": AnalyzerConfig(
-                name="Erba",
-                protocol="HL7",
-                yaml_config_path="/config/erba_config.yaml",
-                port=2575,
-                host="192.168.1.100"
-            ),
-            "Abbott": AnalyzerConfig(
-                name="Abbott", 
-                protocol="ASTM",
-                yaml_config_path="/config/abbott_config.yaml",
-                port=9600
-            ),
-            "BS240": AnalyzerConfig(
-                name="BS240",
-                protocol="ASTM", 
-                yaml_config_path="/config/bs240_config.yaml",
-                port=9600
-            ),
-            "Snibe": AnalyzerConfig(
-                name="Snibe",
-                protocol="HL7",
-                yaml_config_path="/config/snibe_config.yaml", 
-                port=2575
-            )
+        self.analyzer_config:AnalyzerConfig = {}
+        self.gui_loggers = {
+            "gui_log_callback": None,
+            "gui_error_callback": None,
+            "gui_network_callback": None,
+            "gui_serial_callback": None
         }
-    
+
     def select_analyzer(self, analyzer_name: str) -> AnalyzerConfig:
         """Select and configure an analyzer"""
-        if analyzer_name not in self.analyzer_configs:
-            raise ValueError(f"Unknown analyzer: {analyzer_name}")
         
-        self.current_analyzer = analyzer_name
-        config = self.analyzer_configs[analyzer_name]
-        
-        # Initialize data handler for this analyzer
-        self.handler = DataHandler(config, self.gui_log_callback)
-        
-        if self.gui_log_callback:
-            self.gui_log_callback(f"[Engine] Loading YAML config: {config.yaml_config_path}")
-            self.gui_log_callback(f"[Engine] Creating Pydantic blueprints for {config.protocol} protocol")
-        
-        return config
+        if not analyzer_name:
+            raise ValueError("Analyzer name cannot be empty")
     
+        if analyzer_name not in self.analyzer_config:
+            try:
+                self.analyzer_config[analyzer_name] = ConfigLoader.load_analyzer_config(self.yaml_path)
+            except Exception as e:
+                raise ValueError(f"Failed to load configuration for analyzer '{analyzer_name}': {e}")
+    
+        config: AnalyzerConfig = self.analyzer_config[analyzer_name]
+        self.handler = DataHandler(config)
+        return config
+        
     def set_analyzer_ready(self, analyzer_name: str):
         """Set analyzer as ready in shared state"""
         if analyzer_name == self.current_analyzer:
@@ -160,11 +127,30 @@ class MiddlewareEngine:
                     
                     # Step 6: Process through your existing pipeline
                     if self.handler:
-                        validated_message = self.handler.process_data(msg_str)
+                        validated_message = self.handler.process_data(msg_str, self.gui_network_callback)
                         
                         if validated_message:
                             if self.gui_log_callback:
                                 self.gui_log_callback("[STEP 6-7] ✓ Data parsed and validated successfully")
+                            
+                            # path = Path(os.getcwd())
+                            # config_dir = path / "configuration"                            
+                            # config_file_path = config_dir / "validated_messages.txt"
+    
+                            # try:
+                            #     # Save validated message with timestamp
+                            #     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                
+                            #     with open(config_file_path, 'a', encoding='utf-8') as f:
+                            #         self.gui_network_callback(validated_message.model_dump_json())
+                            #         f.write(f"[{timestamp}] {validated_message.model_dump_json()}\n")
+                                
+                            #         if self.gui_log_callback:
+                            #             self.gui_log_callback(f"[STEP 8] ✓ Validated message saved to {config_file_path}")
+            
+                            # except Exception as e:
+                            #     if self.gui_log_callback:
+                            #         self.gui_log_callback(f"[ERROR] Failed to save validated message: {e}")
                             
                             # Step 8: Send to API
                             await self._send_to_api(validated_message)
@@ -176,7 +162,6 @@ class MiddlewareEngine:
                             
                             if self.gui_log_callback:
                                 self.gui_log_callback("[STEP 8] ✓ Data sent to API, ACK sent")
-
                         else:
                             nack = message.create_ack(ack_code='AE')
                             writer.writemessage(nack)
@@ -290,14 +275,18 @@ class MiddlewareEngine:
                                 serial_log:Optional[Callable] = None
                             ):
         """Start HL7 MLLP server in background thread"""
-        self.gui_log_callback = gui_log
-        self.gui_error_callback = error_log
-        self.gui_network_callback = network_log
-        self.gui_serial_log = serial_log
-        
+        register_loggers(gui_log, error_log, network_log, serial_log)
+        logger_registry_instance = GuiLoggerRegistryInstance
+
+        self.gui_log_callback = logger_registry_instance._get_gui_log_callback()
+        self.gui_error_callback = logger_registry_instance._get_gui_error_callback()
+        self.gui_network_callback = logger_registry_instance._get_gui_network_callback()
+        self.gui_serial_callback = logger_registry_instance._get_gui_serial_callback()
+
+
         if self.is_running:
-            if gui_log:
-                gui_log("[Engine] Server already running")
+            if self.gui_log_callback:
+                self.gui_log_callback("[Engine] Server already running")
             return
         
         self.server_ready = threading.Event()
@@ -349,17 +338,7 @@ class MiddlewareEngine:
             if self.gui_error_callback:
                 self.gui_error_callback(f"[Engine] Error closing API service: {e}")
 
-# Create global engine instance
 engine = MiddlewareEngine()
-
-# Utility functions for GUI integration
-def get_available_analyzers() -> list:
-    """Get list of available analyzers"""
-    return list(engine.analyzer_configs.keys())
-
-def get_analyzer_config(analyzer_name: str) -> Optional[AnalyzerConfig]:
-    """Get configuration for specific analyzer"""
-    return engine.analyzer_configs.get(analyzer_name)
 
 def is_middleware_ready() -> bool:
     """Check if middleware is ready"""
@@ -375,10 +354,10 @@ def get_server_status() -> dict:
     }
 
 if __name__ == '__main__':
-    print("===== Starting Engine =====")
-    
+    print("===== Starting Engine =====")    
+
     def console_log(message):
-        timestamp = datetime.now().strftime("%H:%M:%S")
+        timestamp = datetime.datetime.now().strftime("%H:%M:%S")
         print(f"[{timestamp}] {message}")
     
     try:

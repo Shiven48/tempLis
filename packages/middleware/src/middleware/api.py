@@ -6,7 +6,7 @@ Handles validated data transmission to external APIs
 import aiohttp
 import asyncio
 import json
-from typing import Optional, Dict, Any, Union
+from typing import Dict, Any
 from dataclasses import asdict, is_dataclass
 import logging
 from datetime import datetime

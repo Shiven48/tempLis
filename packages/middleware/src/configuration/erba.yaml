@@ -1,26 +1,22 @@
 # As the parser is simpler and does all the heavy lifting we will 
 # keep the parser key simple as just the field name and its index value 
 
-device: Erba
-protocol: HL7
+device: "Erba"
+protocol: "HL7"
 transport:
-  mode: tcp
+  mode: "tcp"
+  host: "127.0.0.1"
   port: 15200
-  host: 127.0.0.1 
 parser:
-  MSH: 
+  MSH:
     model: 3
     machine: 4
     datetime_of_message: 7
-  PID:
-    patient_id: 3
-    patient_name: 5
-    gender: 8
   OBR:
     requested_timing: 6
     reservation_timing: 7
-    approved_timing: 22
   OBX:
+    value_type: 2
     test_code: 3
     test_name: 3
     result_value: 5

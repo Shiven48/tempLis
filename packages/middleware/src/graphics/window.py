@@ -9,6 +9,9 @@ from graphics.serial_tab import SerialTab
 from graphics.network_tab import NetworkTab
 from graphics.Logs.logs_tab import InfoLogTab, ErrorLogTab
 
+from constants import host, port
+from middleware.models import AnalyzerConfig
+
 try:
     import middleware as mw_engine
     MIDDLEWARE_AVAILABLE = True
@@ -175,7 +178,6 @@ class MiddlewareGUI:
                 if msg_type == 'info':
                     self.logging_manager.info(data['message'])
                 elif msg_type == 'error':
-                    print("Are you here??")
                     self.logging_manager.error(data['message'])
                 elif msg_type == 'network_data':
                     self.logging_manager.network_data(data['message'], data['tag'])
@@ -256,10 +258,10 @@ class MiddlewareGUI:
             self.log_info("[STEP 2] → Loading YAML configuration...")
             
             # Configure engine
-            config = mw_engine.engine.select_analyzer(name)
+            config:AnalyzerConfig = mw_engine.engine.select_analyzer(name)
             mw_engine.engine.set_analyzer_ready(name)
             
-            self.log_info(f"[STEP 2] ✓ Loaded config for {config.name} ({config.protocol})")
+            self.log_info(f"[STEP 2] ✓ Loaded config for {config.device} ({config.protocol})")
             self.log_info("[STEP 3] ✓ Analyzer marked as ready in shared state")
             
             # Update status (updated when the analyzer is selected)
@@ -294,8 +296,8 @@ class MiddlewareGUI:
             
             # Start engine server
             mw_engine.engine.start_server_background(
-                host="127.0.0.1", 
-                port=15200, 
+                host=host,
+                port=port,
                 gui_log=self.log_info,
                 error_log=self.log_error,
                 network_log=self.log_network_data,

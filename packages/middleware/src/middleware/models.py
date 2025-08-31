@@ -1,40 +1,131 @@
-from typing import Dict, Any, Optional, List
-from dataclasses import dataclass, field
-from pydantic import BaseModel
+from enum import Enum
+from typing import Dict, Optional, List, Any, Union
+import warnings
+from pydantic import BaseModel, Field, field_validator, model_validator
+import ipaddress
 
-@dataclass
-class AnalyzerConfig:
-    name: str
-    protocol: str
-    port: int
-    yaml_config_path: str
-    pydantic_schemas: Dict[str, Any] = field(default_factory=dict)
-    host: Optional[str] = "127.0.0.1"
+class TransportMode(str, Enum):
+    TCP = "tcp"
+    SERIAL = "serial"
+    UDP = "udp"
 
-@dataclass
-class ValidationResult:
-    """Result of configuration validation"""
-    is_valid: bool
-    errors: List[str]
-    warnings: List[str]
-    config_data: Optional[Dict[str, Any]] = None
+class Protocol(str, Enum):
+    HL7 = "HL7"
+    ASTM = "ASTM"
+    HL7_MLLP = "HL7-MLLP"
 
-class ErbaPatientInfo(BaseModel):
-    patient_id: str
-    patient_name: str
-    age: Optional[int] = None
-    gender: Optional[str] = None
+class Encoding(str, Enum):
+    UTF8 = "utf-8"
+    ASCII = "ascii"
+    LATIN1 = "latin-1"
+    CP1252 = "cp1252"
+
+class TransportConfig(BaseModel):
+    mode: TransportMode = Field(default=TransportMode.TCP)
+    host: str = Field(default="127.0.0.1", min_length=1)
+    port: int = Field(..., ge=1, le=65535)
     
+    @field_validator('host')
+    @classmethod
+    def validate_host(cls, v: str) -> str:
+        try:
+            ipaddress.ip_address(v)
+        except ValueError:
+            # Basic hostname validation
+            if not v.replace('-', '').replace('.', '').isalnum():
+                raise ValueError(f'Invalid hostname format: {v}')
+        return v
+
+class ParserConfig(BaseModel):
+    """Parser configuration for HL7 segments with flexible field mapping"""
+    MSH: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict)
+    OBR: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict) 
+    OBX: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict)
+
+    class Config:
+        extra = "allow"  # Allows additional fields beyond MSH, OBR, OBX
+
+    @field_validator('OBX')
+    @classmethod
+    def validate_obx_fields(cls, v):
+        """OBX segment cannot have more than 11 fields"""
+        if v and len(v) > 11:
+            raise ValueError('OBX segment cannot have more than 12 field mappings')
+        return v
+    
+    @field_validator('MSH')
+    @classmethod
+    def validate_msh_fields(cls, v):
+        """MSH segment cannot have more than 18 fields"""
+        if v and len(v) > 18:
+            raise ValueError('MSH segment cannot have more than 18 field mappings')
+        return v
+    
+    @field_validator('OBR')
+    @classmethod
+    def validate_obr_fields(cls, v):
+        """OBR segment cannot have more than 32 fields"""
+        if v and len(v) > 32:
+            raise ValueError('OBR segment cannot have more than 32 field mappings')
+        return v
+    
+    
+    @field_validator('*')
+    @classmethod  
+    def validate_field_numbers(cls, v):
+        """Ensure field numbers are positive integers"""
+        if v:
+            for field_name, field_number in v.items():
+                if isinstance(field_number, int) and field_number < 1:
+                    raise ValueError(f'Field number for {field_name} must be positive, got {field_number}')
+                elif isinstance(field_number, int) and field_number > 32:
+                    warnings.warn("Segment cannot have more than 32 fields")
+        return v
+    
+    @model_validator(mode='after')
+    def validate_required_obx_fields(self):
+        """Ensure OBX has minimum required fields for test results"""
+        if self.OBX:
+            required_obx_fields = {'test_code', 'result_value'}
+            obx_fields = set(self.OBX.keys())
+            missing_fields = required_obx_fields - obx_fields
+            if missing_fields:
+                warnings.warn(f"OBX missing recommended fields: {missing_fields}")
+        return self
+
+
+class AnalyzerConfig(BaseModel):
+    """Complete analyzer configuration with validation"""
+    device: str = Field(..., min_length=1, max_length=50)
+    protocol: Protocol
+    transport: TransportConfig
+    parser: Optional[ParserConfig] = Field(default_factory=ParserConfig)
+    retry_attempts: Optional[int] = Field(None, ge=0, le=10)
+    
+    @field_validator('device')
+    @classmethod
+    def validate_device_name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Device name cannot be empty or whitespace")
+        return v.strip()
+    
+    @model_validator(mode='after')
+    def validate_config_consistency(self):
+        """Cross-field validation"""
+        if self.transport.mode == TransportMode.SERIAL and self.transport.host != "127.0.0.1":
+            raise ValueError("Serial mode should use localhost/127.0.0.1")
+        return self
+
 class ErbaTestResult(BaseModel):
-    test_code: str
-    test_name: str
+    test_code: str = Field(..., min_length=1)
+    test_name: str = Field(..., min_length=1)
     result_value: str
-    unit: Optional[str] = None
+    units: Optional[str] = None
     reference_range: Optional[str] = None
     flags: Optional[str] = None
-    
+
 class ErbaMessage(BaseModel):
-    patient_info: ErbaPatientInfo
-    test_results: List[ErbaTestResult]
-    timestamp: str
-    analyzer_id: str
+    test_results: List[ErbaTestResult] = Field(..., min_items=1)
+    timestamp: str = Field(..., min_length=1)
+    analyzer_id: str = Field(..., min_length=1)
+    raw_message: List[Any] = Field(default_factory=list)
