@@ -37,8 +37,8 @@ host = "127.0.0.1"
 port = 15200
 BUFFER_SIZE = 4096
 
-ERBA_YAML_PATH = 'packages/middleware/src/configuration/erba.yaml'
-# ERBA_YAML_PATH = 'configuration/erba.yaml'
+# ERBA_YAML_PATH = 'packages/middleware/src/configuration/erba.yaml'
+ERBA_YAML_PATH = 'configuration/erba.yaml'
 
 
 cbc_parameters = {
@@ -66,6 +66,8 @@ cbc_parameters = {
     "RDW-CV": "Red Cell Distribution Width (CV)",
     "RDW-SD": "Red Cell Distribution Width (SD)",
     "PLT": "Platelet Count",
+    
+    # Below are optional ones
     "MPV": "Mean Platelet Volume",
     "PDW-SD": "Platelet Distribution Width (SD)",
     "PDW-CV": "Platelet Distribution Width (CV)",
@@ -73,3 +75,7 @@ cbc_parameters = {
     "P-LCR": "Platelet Large Cell Ratio",
     "P-LCC": "Platelet Large Cell Count"
 }
+
+# Ranges
+OBR_RANGE = 18
+OBX_RANGE = 12

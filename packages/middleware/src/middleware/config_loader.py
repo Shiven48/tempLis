@@ -1,4 +1,4 @@
-from middleware.models import AnalyzerConfig, ParserConfig, TransportConfig
+from middleware.models import AnalyzerConfig, ParserConfig, SegmentsConfig, TransportConfig
 import yaml
 from pathlib import Path
 from typing import List, TypeVar, Type, Union
@@ -68,7 +68,16 @@ class ConfigLoader:
             raw_data = yaml.safe_load(f)
         
         parser_data = raw_data.get('parser', {})
-        return ParserConfig.model_validate(parser_data)  
+        return ParserConfig.model_validate(parser_data) 
+
+    def load_segments_config(yaml_path: Union[str, Path]) -> SegmentsConfig:
+        """Load and validate segments configuration only""" 
+        with open(yaml_path, 'r', encoding='utf-8') as f:
+            raw_data = yaml.safe_load(f)
+        
+        segments_data = raw_data.get('segments', {})
+        return SegmentsConfig.model_validate(segments_data)
+
     
     @staticmethod
     def validate_config_file(yaml_path: Union[str, Path]) -> tuple[bool, List[str]]:

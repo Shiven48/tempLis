@@ -5,7 +5,7 @@ install:
 	uv pip install -e ./packages/middleware -e ./packages/api
 
 run-api:
-	python ./packages/api/src/api/main.py
+	python ./packages/api/src/api/endpoint.py
 
 run-graphics:
 	cd packages/middleware/src && set PYTHONPATH=. && python -m graphics.window

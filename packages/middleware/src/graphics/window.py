@@ -317,10 +317,10 @@ class MiddlewareGUI:
             self.log_info("[STEP 4] ✓ HL7 MLLP server started successfully")
             self.log_info("[STEP 4] ✓ Server listening on 127.0.0.1:15200")
             self.log_info("")
-            self.log_info("🔄 MIDDLEWARE ENGINE STATUS:")
+            self.log_info("MIDDLEWARE ENGINE STATUS:")
             self.log_info("  ✓ Step 1-4: Engine initialized and running")
             self.log_info("  ✓ Ready to receive HL7 MLLP connections")
-            self.log_info("  ⏳ Waiting for analyzer connections...")
+            self.log_info("Waiting for analyzer connections...")
             
         except Exception as e:
             self.log_error(f"[Engine] Failed to start: {e}")

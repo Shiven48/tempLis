@@ -18,18 +18,23 @@ class DataValidator:
         """Validate parsed data against Pydantic models"""
         try:
             test_results_data = parsed_data.get('test_results', [])
-            print(f"DEBUG: test_results_data = {test_results_data}")
             
             if not test_results_data:
                 logging.warning("No test results found in parsed data")
                 return None
+            
+            message_header = parsed_data['message_header']
+            machine:str = message_header['machine']
+            model:str = message_header['model']
 
-            erba_message = ErbaMessage(
-                # patient_info=ErbaPatientInfo(**parsed_data.get('patient_info', {})),
+            erba_message:ErbaMessage = ErbaMessage(
                 test_results=[ErbaTestResult(**result) for result in parsed_data.get('test_results', [])],
                 timestamp=time.strftime('%Y-%m-%d %H:%M:%S'),
                 analyzer_id=self.config.device,
-                raw_message=parsed_data["raw_segments"]
+                raw_message=parsed_data["raw_segments"],
+                findings=parsed_data['findings'],
+                machine=machine,
+                model=model
             )
             
             return erba_message

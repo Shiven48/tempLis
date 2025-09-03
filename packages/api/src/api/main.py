@@ -1,19 +1,48 @@
-from fastapi import FastAPI, Body
-from pydantic import BaseModel
-from typing import Annotated
+from platform import machine
+from fastapi import FastAPI
+from sqlalchemy import JSON, ForeignKey, create_engine, Column, Integer, String, Text, DateTime
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship
 
-app = FastAPI(title="Dummy Remote API")
+DATABASE_URL = "sqlite:///./lab_results.db"
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
 
-class ProcessedData(BaseModel):
-    source_id: str
-    content: dict
-    status: str
+class TestResult(Base):
+    __tablename__ = "test_results"
+    
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    analyzer_id = Column(String, index=True)
+    timestamp = Column(DateTime)
+    test_code = Column(String, index=True)
+    test_name = Column(String)
+    result_value = Column(String)
+    units = Column(String)
+    reference_range = Column(String)
+    flags = Column(String)
+    lab_message_id = Column(Integer, ForeignKey('lab_messages.id'), index=True)
+    lab_message = relationship("LabMessage", back_populates="test_results")    
 
-@app.post("/v1/data")
-async def receive_data(payload: Annotated[ProcessedData, Body()]):
-    """
-    This endpoint simulates receiving processed data from the middleware.
-    """
-    print(f"Received data from {payload.source_id}: {payload.content}")
-    # In a real scenario, this would interact with a GCP service.
-    return {"message": "Data received successfully", "status": "processed"}
+class LabMessage(Base):
+    __tablename__ = "lab_messages"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    analyzer_id = Column(String, index=True)
+    timestamp = Column(DateTime)
+    raw_segments = Column(Text)
+    test_results_count = Column(Integer)
+    machine = Column(String)
+    model = Column(String)
+    findings = Column(JSON)
+    test_results = relationship("TestResult", back_populates="lab_message")
+
+Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+app = FastAPI(title="Lab Results API", version="1.0.0")

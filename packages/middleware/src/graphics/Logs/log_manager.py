@@ -1,4 +1,5 @@
 from graphics.Logs.base import LoggerBase
+from middleware import logger as log
 
 
 class LoggingManager:
@@ -12,14 +13,14 @@ class LoggingManager:
     def register(self, name: str, logger: LoggerBase):
         """Registers a new logger under a unique name."""
         self.loggers[name] = logger
-        print(f"Logger registered: '{name}'")
+        log.info(f"Logger registered: '{name}'")
 
     def _dispatch(self, name: str, message: str, tag: str):
         """Sends a message to a specific named logger."""
         if name in self.loggers:
             self.loggers[name].log(message, tag)
         else:
-            print(f"[Warning] Logger '{name}' not found for message: {message}")
+            log.info(f"[Warning] Logger '{name}' not found for message: {message}")
 
     def info(self, message: str):
         self._dispatch('global_info', message, 'info')

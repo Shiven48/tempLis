@@ -1,7 +1,18 @@
 from enum import Enum
-from typing import Dict, Optional, List, Any, Union
+from typing import (
+    Dict, 
+    Optional, 
+    List, 
+    Any, 
+    Union
+)
 import warnings
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel, 
+    Field, 
+    field_validator, 
+    model_validator
+)
 import ipaddress
 
 class TransportMode(str, Enum):
@@ -38,12 +49,12 @@ class TransportConfig(BaseModel):
 
 class ParserConfig(BaseModel):
     """Parser configuration for HL7 segments with flexible field mapping"""
-    MSH: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict)
+    MSH: Dict[str, Union[int, str]] = Field(default_factory=dict)
     OBR: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict) 
     OBX: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict)
 
     class Config:
-        extra = "allow"  # Allows additional fields beyond MSH, OBR, OBX
+        extra = "allow"
 
     @field_validator('OBX')
     @classmethod
@@ -129,3 +140,22 @@ class ErbaMessage(BaseModel):
     timestamp: str = Field(..., min_length=1)
     analyzer_id: str = Field(..., min_length=1)
     raw_message: List[Any] = Field(default_factory=list)
+    findings: Optional[List] = Field(default_factory=list)
+    machine: str = Field(min_length=1, default="ERBA")
+    model: str = Field(min_length=1, default="ELite 580")
+
+class SegmentsConfig(BaseModel):
+    """Complete segments configuration with validation"""
+    optional: str = Field(..., description="Optional segment range (e.g. '1-6')")
+    required: str = Field(..., description="Required segment range (e.g. '7-36')")
+    findings: Optional[str] = Field(..., description="Findings (e.g. '37+' or '37-50')")
+
+    @field_validator("optional", "required", "findings", mode="before")
+    def validate_range(cls, v):
+        if v is None:
+            return v
+        if not isinstance(v, str):
+            raise ValueError("Must be a string like '1-6' or '37+'")
+        if not (v.replace("-", "").replace("+", "").isdigit()):
+            raise ValueError(f"Invalid format: {v}")
+        return v

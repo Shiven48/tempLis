@@ -1,19 +1,17 @@
 import asyncio
 import datetime
-import os
-from pathlib import Path
 import threading
 import time
-from typing import Dict, Optional, Callable
+from typing import Optional, Callable
 from constants import ERBA_YAML_PATH
 from hl7.mllp import start_hl7_server, HL7StreamReader, HL7StreamWriter
 
 from middleware.config_loader import ConfigLoader
-from middleware.logger import GuiLoggerRegistryInstance, register_loggers
+from middleware.logger import GuiLoggerRegistryInstance, register_loggers, logger
 from middleware.parser import HL7Parser
 from middleware.validator import DataValidator
 from middleware.models import AnalyzerConfig, ErbaMessage
-from middleware.api import close_api_service
+from middleware.api import APIService, close_api_service, get_api_service
 
 class DataHandler:
     def __init__(self, config: AnalyzerConfig):
@@ -27,6 +25,7 @@ class DataHandler:
         try:            
             # Parse the data
             parsed_data = self.parser.parse_with_config(raw_data)
+            # logger.info(f"Parsed_data: {parsed_data}")
             
             if len(parsed_data['parsing_errors']) != 0:
                 return None
@@ -64,6 +63,7 @@ class MiddlewareEngine:
         self.server_thread = None
         self.gui_loggers = {}
         self.yaml_path = ERBA_YAML_PATH
+        self.api_service:APIService = get_api_service()
         
         # Your analyzer configurations
         self.analyzer_config:AnalyzerConfig = {}
@@ -127,31 +127,12 @@ class MiddlewareEngine:
                     
                     # Step 6: Process through your existing pipeline
                     if self.handler:
-                        validated_message = self.handler.process_data(msg_str, self.gui_network_callback)
+                        validated_message:ErbaMessage | None = self.handler.process_data(msg_str)
                         
                         if validated_message:
                             if self.gui_log_callback:
                                 self.gui_log_callback("[STEP 6-7] ✓ Data parsed and validated successfully")
-                            
-                            # path = Path(os.getcwd())
-                            # config_dir = path / "configuration"                            
-                            # config_file_path = config_dir / "validated_messages.txt"
-    
-                            # try:
-                            #     # Save validated message with timestamp
-                            #     timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                                
-                            #     with open(config_file_path, 'a', encoding='utf-8') as f:
-                            #         self.gui_network_callback(validated_message.model_dump_json())
-                            #         f.write(f"[{timestamp}] {validated_message.model_dump_json()}\n")
-                                
-                            #         if self.gui_log_callback:
-                            #             self.gui_log_callback(f"[STEP 8] ✓ Validated message saved to {config_file_path}")
-            
-                            # except Exception as e:
-                            #     if self.gui_log_callback:
-                            #         self.gui_log_callback(f"[ERROR] Failed to save validated message: {e}")
-                            
+
                             # Step 8: Send to API
                             await self._send_to_api(validated_message)
                             
@@ -173,7 +154,6 @@ class MiddlewareEngine:
                         if self.gui_log_callback:
                             self.gui_error_callback("[Handler] ✗ No handler configured")
                         
-                        # Send NACK for no handler - FIXED
                         nack = message.create_ack(ack_code='AE')
                         writer.writemessage(nack)
                         await writer.drain()
@@ -192,7 +172,7 @@ class MiddlewareEngine:
                         writer.writemessage(nack)
                         await writer.drain()
                         if self.gui_log_callback:
-                            self.gui_log_callback("[Engine] NACK sent due to processing error")
+                            self.gui_log_callback(f"[Engine] NACK sent due to processing error: {e}")
                     break
 
         finally:
@@ -202,18 +182,16 @@ class MiddlewareEngine:
             if self.gui_log_callback:
                 self.gui_log_callback(f"[Engine] Connection with {peer} fully closed")
 
-    # Just a placeholder
-    async def _send_to_api(self, validated_message):
+    async def _send_to_api(self, validated_message:ErbaMessage):
         """Send validated data to API endpoint"""
         try:
             if self.gui_log_callback:
                 self.gui_log_callback("[STEP 8] → Sending to API endpoint...")
             
-            # Implement your actual API sending logic here
-            # Example: await self.api_service.send_to_endpoint(validated_message)
-            
+            await self.api_service.send_analyzer_data(validated_message)
+
             # For now, simulate API call
-            await asyncio.sleep(0.1)  # Simulate network delay
+            # await asyncio.sleep(0.1)  # Simulate network delay
             
             if self.gui_log_callback:
                 self.gui_log_callback("[STEP 8] ✓ Data sent to API successfully")
@@ -302,9 +280,6 @@ class MiddlewareEngine:
             except Exception as e:
                 if error_log:
                     self.gui_error_callback(f"[Engine] Server thread error: {e}")
-                import traceback
-                # Terminal
-                self.gui_error_callback(f"[Engine] Traceback: {traceback.format_exc()}")
             finally:
                 if self.loop:
                     self.loop.close()

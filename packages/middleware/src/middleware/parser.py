@@ -1,116 +1,119 @@
 from pathlib import Path
-import hl7
+from hl7 import Message, Sequence, parse
 from typing import Dict, List, Any
-import logging
+from middleware.abstracts import Processor
+from middleware.logger import logger
 from middleware.config_loader import ConfigLoader
 from constants import cbc_parameters
 from middleware.models import ParserConfig
-
-
-def safe_get(segment, index, default=''):
-    """Safely extract field from HL7 segment"""
-    try:
-        return str(segment[index]) if len(segment) > index else default
-    except (IndexError, TypeError):
-        return default
-
+from middleware.processor import processFactory
 
 class ConfigurableHL7Parser:
     """ parsing logic """
     
-    def __init__(self, parser_config: Dict[str, Dict[str, int]]):
+    def __init__(self, parser_config: ParserConfig):
         """Initialize with parser configuration dictionary"""
         if not parser_config:
             raise ValueError("Parser configuration cannot be empty")
         self.parser_config = parser_config
+        self.result = {
+                'message_header': {},
+                'order_request': {},
+                'test_results': [],
+                'raw_segments': [],
+                'parsing_errors': [],
+                'findings': []
+            }
+        self.message_types:List[str] = self._get_segments()
+
+    def _get_segments(self) -> List[str]:
+        configured_segments = [
+                key for key, value in self.parser_config.model_dump().items() 
+                if value
+            ]
+        return configured_segments
         
     def parse(self, raw_data: str) -> Dict[str, Any]:
         """Parse HL7 message using configuration"""
         try:
             clean_data = raw_data.strip()
-            msg = hl7.parse(clean_data)                
-            result = {
-                'message_header': {},
-                'order_request': {},
-                'test_results': [],
-                'raw_segments': [],
-                'parsing_errors': []
-            }
+            self.result['raw_segments'] = [clean_data]
+            msg:Message = parse(clean_data)  
+
+            max_segment_number, len_obx_segments = self._get_max_sequence_number(msg)
+            if max_segment_number > len_obx_segments:
+                self.result['parsing_errors'].append(f"Captured {len_obx_segments} but max sequence number is {max_segment_number}")
             
-            # ✅ Convert parser_config to dict
-            parser_config_dict = self.parser_config.model_dump()
+            if not self._message_parse_and_validate(msg):
+                self.result['parsing_errors'].append("OBX sequence validation failed")
             
-            for segment in msg:
-                if len(segment) == 0:
-                    continue
-                segment_type = safe_get(segment, 0)
-                
-                # ✅ Check against dict keys
-                if segment_type in parser_config_dict:
-                    try:
-                        parsed_segment = self._parse_segment(segment, segment_type)
-                        self._store_segment_data(result, segment_type, parsed_segment)
-                    except Exception as e:
-                        result['parsing_errors'].append(f"Error parsing {segment_type}: {e}")
-                result['raw_segments'].append(str(segment))
-            return result
-        
+            # logger.info(self.result)
+            return self.result
         except Exception as e:
-            return {
+            {   
                 'error': str(e),
                 'raw_data': raw_data,
                 'message_header': {},
                 'order_request': {},
                 'test_results': [],
-                'parsing_errors': [str(e)]
-            }
+                'parsing_errors': [str(e)],
+                'findings': []
+            } 
 
-    def _parse_segment(self, segment, segment_type: str) -> Dict[str, str]:
-        """Parse individual segment using configuration"""
-        field_mapping = getattr(self.parser_config, segment_type, {})
-        parsed = {}
+    def _get_max_sequence_number(self, msg: Message):
+        obx_segments:Sequence = msg.segments('OBX')
+        sequence_numbers:List[int] = []
         
-        for field_name, field_index in field_mapping.items():
-            value = safe_get(segment, field_index)
-            
-            # Special handling for OBX fields that contain "CODE^NAME^SYSTEM"
-            if segment_type == 'OBX' and field_name in ['test_code', 'test_name', 'patient_name'] and '^' in value:
-                parts = value.split('^')
-                if field_name == 'test_code':
-                    value = parts[0] if parts else value
-                elif field_name == 'test_name':
-                    value = parts[1] if len(parts) > 1 else value
-            elif segment_type == 'PID' and field_name == 'patient_name' and '^' in value:
-                parts = value.split('^')
-                lastname = parts[0] if len(parts) > 0 else ''
-                firstname = parts[1] if len(parts) > 1 else ''
-                middle_initial = parts[2] if len(parts) > 2 else ''                
-                value = f'{firstname} {middle_initial} {lastname}'.strip()
-            
-            parsed[field_name] = value
-        return parsed
+        for obx in obx_segments:
+            sequence_number = int(obx[1][0])
+            sequence_numbers.append(sequence_number)
+        
+        max_segment_number = max(sequence_numbers)
+        len_obx_segments = len(obx_segments)
+        return max_segment_number, len_obx_segments
+
+    def _message_parse_and_validate(self, parsed_message:Message) -> bool:
+        """Validate sequences maintain transmission order and follow business rules"""
+        try:
+            errors, is_valid = self._process_segments(parsed_message)
+            if errors:
+                self.result['parsing_errors'].extend(errors)
+            return is_valid
+        except Exception as e:
+            self.result['parsing_errors'].append(f"Sequence validation failed: {e}")
+            return False
+
+    def _process_segments(self, message_segments:Message) -> tuple[list, bool]:
+        """Get valid next sequences based on configuration ranges"""
+        all_errors = []
+        is_valid = True
+        
+        for segment_type in self.message_types:
+            sequence:Sequence = message_segments.segments(segment_type)
+            processor:Processor = processFactory(segment_type, sequence)
+            errors, valid = processor.process_segment()
+        
+            if not valid and errors:
+                all_errors.extend(errors)
+                is_valid = False
+
+            if segment_type == 'OBX':
+                NM_result, IS_result = processor.parse()
+                if NM_result:
+                    self.result['test_results'] = NM_result 
+                if IS_result:
+                    self.result['findings'] = IS_result
+            else:
+                segment_parsing_result = processor.parse()
+            self._store_segment_data(segment_type, segment_parsing_result)
+        return all_errors, is_valid
     
-    def _store_segment_data(self, result: Dict, segment_type: str, parsed_segment: Dict):
+    def _store_segment_data(self, segment_type: str, parsed_segment: Dict):
         """Store parsed segment in appropriate result section"""
         if segment_type == 'MSH':
-            result['message_header'] = parsed_segment
+            self.result['message_header'] = parsed_segment[0] if len(parsed_segment) == 1 else parsed_segment
         elif segment_type == 'OBR':
-            result['order_request'] = parsed_segment
-        elif segment_type == 'OBX':
-            if self.is_obx_valid(parsed_segment):
-                result['test_results'].append(parsed_segment)
-
-    def is_obx_valid(self, segment:Dict) -> bool:
-        value_type = segment.get('value_type')
-        test_name = segment.get('test_name')
-        if value_type is not None:
-            if value_type == 'IS':
-                return False
-            elif test_name not in cbc_parameters:
-                return False
-            else:
-                segment[f'full_test_name'] = cbc_parameters[test_name]
-                return True
+            self.result['order_request'] = parsed_segment[0] if len(parsed_segment) == 1 else parsed_segment
 
 class HL7Parser:
     """Facade that integrates config loading with parsing"""
@@ -131,17 +134,10 @@ class HL7Parser:
         
             if not any(parser_config.model_dump().values()):
                 raise ValueError(f"No parser segments configured in {self.yaml_config_path}")
-        
-            self.core_parser = ConfigurableHL7Parser(parser_config)
-        
-            configured_segments = [
-                key for key, value in parser_config.model_dump().items() 
-                if value
-            ]
-            logging.info(f"[Parser] Initialized with segments: {configured_segments}")
             
+            self.core_parser = ConfigurableHL7Parser(parser_config)            
         except Exception as e:
-            logging.error(f"[Parser] Initialization failed: {e}")
+            logger.error(f"[Parser] Initialization failed: {e}")
             raise
     
     @staticmethod

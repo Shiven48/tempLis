@@ -1,6 +1,0 @@
-Metadata-Version: 2.4
-Name: my-api
-Version: 0.1.0
-Requires-Dist: fastapi
-Requires-Dist: uvicorn[standard]
-Requires-Dist: pydantic
