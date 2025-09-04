@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 import os
+from constants import ERBA_YAML_DIRECTORY
 import yaml
 
 from graphics.Logs.logs_widget import TextWidgetLogger, LogWidget
@@ -52,8 +53,11 @@ class NetworkTab:
         data_log_frame.pack(fill='both', expand=True, pady=(0, 10))
 
         data_log_widget = LogWidget(data_log_frame)
+        
         data_logger = TextWidgetLogger(data_log_widget)
         self.main_app.logging_manager.register('network_data', data_logger)
+        self.main_app.logging_manager.register('middleware_ack_data', data_logger)
+        self.main_app.logging_manager.register('middleware_nack_data', data_logger)
 
         # --- Bottom API Frame ---
         # bottom_frame = tk.Frame(main_frame, bg='#e6e6e6', relief=tk.RAISED, bd=2)
@@ -122,14 +126,14 @@ class NetworkTab:
     # Config callbacks
     def load_machine_options(self):
         """Load machine options dynamically from YAML config files, filtering by HL7/TCP protocol"""
-        config_dir = "configuration"
+        config_dir = ERBA_YAML_DIRECTORY
         default_machines = ["Select Machine"]
 
         try:
             if not os.path.isdir(config_dir):
                 if hasattr(self, 'main_app') and self.main_app:
                     self.main_app.log_info(
-                        f"[Config] Configuration directory not found at {config_dir}, using defaults"
+                        f"[Config] Configuration directory not found at {config_dir}, using defaults for HL7 machines"
                     )
                 return default_machines
 

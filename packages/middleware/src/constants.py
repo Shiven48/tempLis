@@ -37,9 +37,12 @@ host = "127.0.0.1"
 port = 15200
 BUFFER_SIZE = 4096
 
+# While running the engine 
 # ERBA_YAML_PATH = 'packages/middleware/src/configuration/erba.yaml'
 ERBA_YAML_PATH = 'configuration/erba.yaml'
 
+# While running the graphics
+ERBA_YAML_DIRECTORY = 'configuration'
 
 cbc_parameters = {
     "WBC": "White Blood Cell Count",

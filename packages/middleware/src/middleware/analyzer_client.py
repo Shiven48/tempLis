@@ -9,6 +9,8 @@ from pathlib import Path
 import socket
 import time
 import sys
+
+from middleware.logger import logger
 from packages.middleware.src.constants import (
     START_BLOCK,
     END_BLOCK,
@@ -58,6 +60,8 @@ class MockErbaAnalyzer:
         
             if not cleaned_line:
                 continue
+
+            logger.info(repr(cleaned_line))
         
             message_dict = {
                 'name': f'HL7_Message_{i}',

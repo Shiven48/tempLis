@@ -9,7 +9,7 @@ import socket
 import time
 import yaml
 import os
-from constants import ACK, ENQ,NAK 
+from constants import ACK, ENQ, ERBA_YAML_DIRECTORY,NAK 
 
 class SerialTab:
 
@@ -166,14 +166,14 @@ class SerialTab:
     # Methods for initializing the state of middleware 
     def load_machine_options(self):
         """Load machine options dynamically from YAML config files, filtering by ASTM protocol"""
-        config_dir = "packages/middleware/src/configuration"
+        config_dir = ERBA_YAML_DIRECTORY
         default_machines = ["Select Machine"]
 
         try:
             if not os.path.isdir(config_dir):
                 if hasattr(self, 'main_app') and self.main_app:
                     self.main_app.log_info(
-                        f"[Config] Configuration directory not found at {config_dir}, using defaults"
+                        f"[Config] Configuration directory not found at {config_dir}, using defaults for ASTM machines"
                     )
                 return default_machines
 

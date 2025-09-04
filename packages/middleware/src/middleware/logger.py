@@ -19,6 +19,12 @@ class GuiLoggerRegistry:
 
     def _get_gui_serial_callback(self) -> Callable:
         return self.gui_loggers["gui_serial_callback"]
+    
+    def _get_gui_middleware_ack_callback(self) -> Callable:
+         return self.gui_loggers["gui_middleware_ack_callback"]
+
+    def _get_gui_middleware_nack_callback(self) -> Callable:
+         return self.gui_loggers["gui_middleware_nack_callback"]
 
     def _set_logger(self, logger_name:str, logger_callback: Callable):
         self.gui_loggers[logger_name] = logger_callback
@@ -29,12 +35,16 @@ def register_loggers(
             gui_log: Optional[Callable] = None, 
             error_log:Optional[Callable] = None,
             network_log:Optional[Callable] = None,
-            serial_log:Optional[Callable] = None
+            serial_log:Optional[Callable] = None,
+            middleware_ack_log:Optional[Callable] = None,
+            middleware_nack_log:Optional[Callable] = None
         ):
         GuiLoggerRegistryInstance._set_logger("gui_log_callback", gui_log)
         GuiLoggerRegistryInstance._set_logger("gui_error_callback", error_log)
         GuiLoggerRegistryInstance._set_logger("gui_network_callback", network_log)
         GuiLoggerRegistryInstance._set_logger("gui_serial_callback", serial_log)
+        GuiLoggerRegistryInstance._set_logger("gui_middleware_ack_callback", middleware_ack_log)
+        GuiLoggerRegistryInstance._set_logger("gui_middleware_nack_callback", middleware_nack_log)
 
 
 os.makedirs("packages/logs", exist_ok=True)

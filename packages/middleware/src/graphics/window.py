@@ -66,17 +66,19 @@ class MiddlewareGUI:
         # self.notebook.pack(expand=True, fill='both', pady=(0, 10))
         self.notebook.pack(expand=True, fill='both')
 
+        self.machine_role = "LIS"
+
         # Start message queue processor
         self.process_message_queue()
         
         # Log initial startup
-        self.log_info("=== MIDDLEWARE STARTED ===")
+        self.log_info("=== ENGINE STARTED ===")
         if MIDDLEWARE_AVAILABLE:
-            self.log_info("✓ Middleware engine available")
+            self.log_info("[Window] Middleware engine available")
         else:
-            self.log_info("⚠ Middleware engine not available - limited functionality")
+            self.log_info("[Window] Middleware engine not available - limited functionality")
         
-        self.log_info("Ready for analyzer selection...")
+        self.log_info("[Window] Ready for analyzer selection...")
 
     def create_status_bar(self, parent):
         """Create comprehensive status bar"""
@@ -154,35 +156,45 @@ class MiddlewareGUI:
     # Logs callbacks
     def log_info(self, message: str):
         """Public, thread-safe method to log a general info message."""
-        self.message_queue.put(('info', {'message': message}))
+        self.message_queue.put(('info', {'message': message}, None))
 
     def log_error(self, message: str):
         """Public, thread-safe method to log a global error message."""
-        self.message_queue.put(('error', {'message': message}))
+        self.message_queue.put(('error', {'message': message}, self.machine_role))
 
     def log_network_data(self, message: str, tag: str = 'data_in'):
         """Public, thread-safe method to log data to the network tab's window."""
-        self.message_queue.put(('network_data', {'message': message, 'tag': tag}))
+        self.message_queue.put(('network_data', {'message': message, 'tag': tag}, None))
 
     def log_serial_data(self, message: str, tag: str = 'data_in'):
         """Public, thread-safe method to log data to the serial tab's window."""
-        self.message_queue.put(('serial_data', {'message': message, 'tag': tag}))
+        self.message_queue.put(('serial_data', {'message': message, 'tag': tag}, None))
+
+    def log_middleware_ack_data(self, message:str, tag: str = 'data_out'):
+        """Public, thread-safe method to log middleware's response to tab's window."""
+        self.message_queue.put(('middleware_ack_data', {'message': message, 'tag': tag}, None))
+
+    def log_middleware_nack_data(self, message:str, tag: str = 'error'):
+        self.message_queue.put(('middleware_nack_data', {'message': message, 'tag': tag}, None))
 
     def process_message_queue(self):
         """Processes messages from worker threads and dispatches them to the LoggingManager."""
         try:
             while True:
-                msg_type, data = self.message_queue.get_nowait()
+                msg_type, data, machine_role = self.message_queue.get_nowait()
                 
-                # Dispatch the message to the correct LoggingManager method
                 if msg_type == 'info':
-                    self.logging_manager.info(data['message'])
+                    self.logging_manager.info(data['message'], machine_role)
                 elif msg_type == 'error':
-                    self.logging_manager.error(data['message'])
+                    self.logging_manager.error(data['message'], machine_role)
                 elif msg_type == 'network_data':
-                    self.logging_manager.network_data(data['message'], data['tag'])
+                    self.logging_manager.network_data(data['message'], data['tag'], machine_role)
                 elif msg_type == 'serial_data':
-                    self.logging_manager.serial_data(data['message'], data['tag'])
+                    self.logging_manager.serial_data(data['message'], data['tag'], machine_role)
+                elif msg_type == 'middleware_ack_data':
+                    self.logging_manager.middleware_ack_data(data['message'], data['tag'], machine_role)
+                elif msg_type == 'middleware_nack_data':
+                    self.logging_manager.middleware_nack_data(data['message'], data['tag'], machine_role)                
                 elif msg_type == "status_update":
                     self._update_status_immediate(data)
                     
@@ -191,36 +203,36 @@ class MiddlewareGUI:
         
         self.root.after(100, self.process_message_queue)
 
-    def log_error(self, error_message, error_type="error"):
-        """Add an error message to the error logs window"""
-        # If called from main thread, update immediately
-        if threading.current_thread() is threading.main_thread():
-            self._log_error_immediate(error_message, error_type)
+    # def log_error(self, error_message, error_type="error"):
+    #     """Add an error message to the error logs window"""
+    #     # If called from main thread, update immediately
+    #     if threading.current_thread() is threading.main_thread():
+    #         self._log_error_immediate(error_message, error_type)
     
-    def _log_error_immediate(self, error_message, error_type="error"):
-        """Immediately log error (main thread only)"""
-        # Safety check: ensure notebook and tabs are initialized
-        if not hasattr(self, 'notebook') or not hasattr(self, 'serial_tab'):
-            print(f"[INIT ERROR] {error_message}")  # Fallback logging during initialization
-            return
+    # def _log_error_immediate(self, error_message, error_type="error"):
+    #     """Immediately log error (main thread only)"""
+    #     # Safety check: ensure notebook and tabs are initialized
+    #     if not hasattr(self, 'notebook') or not hasattr(self, 'serial_tab'):
+    #         print(f"[INIT ERROR] {error_message}")  # Fallback logging during initialization
+    #         return
             
-        try:
-            # Get the current active tab and log to its error widget
-            current_tab = self.notebook.select()
-            current_tab_index = self.notebook.index(current_tab)
+    #     try:
+    #         # Get the current active tab and log to its error widget
+    #         current_tab = self.notebook.select()
+    #         current_tab_index = self.notebook.index(current_tab)
             
-            timestamp = datetime.now().strftime("[%H:%M:%S]")
+    #         timestamp = datetime.now().strftime("[%H:%M:%S]")
             
-            if current_tab_index == 0:  # Serial tab
-                error_widget = self.serial_tab.error_text
-            else:  # Network tab
-                error_widget = self.network_tab.error_text
+    #         if current_tab_index == 0:  # Serial tab
+    #             error_widget = self.serial_tab.error_text
+    #         else:  # Network tab
+    #             error_widget = self.network_tab.error_text
                 
-            error_widget.insert(tk.END, f"{timestamp} ", "timestamp")
-            error_widget.insert(tk.END, f"{error_message}\n", error_type)
-            error_widget.see(tk.END)
-        except (AttributeError, tk.TclError):
-            print(f"[ERROR] {error_message}")
+    #         error_widget.insert(tk.END, f"{timestamp} ", "timestamp")
+    #         error_widget.insert(tk.END, f"{error_message}\n", error_type)
+    #         error_widget.see(tk.END)
+    #     except (AttributeError, tk.TclError):
+    #         print(f"[ERROR] {error_message}")
 
     def clear_all_logs(self):
         """Clears all logs by delegating to the LoggingManager."""
@@ -254,15 +266,15 @@ class MiddlewareGUI:
         
         try:
             # === STEP 1-3: Initialize analyzer in engine ===
-            self.log_info(f"[STEP 1] ✓ Analyzer '{name}' selected from dropdown")
-            self.log_info("[STEP 2] → Loading YAML configuration...")
+            self.log_info(f"[WINDOW] Analyzer '{name}' selected from dropdown")
+            self.log_info("[WINDOW] Loading YAML configuration...")
             
             # Configure engine
             config:AnalyzerConfig = mw_engine.engine.select_analyzer(name)
             mw_engine.engine.set_analyzer_ready(name)
             
-            self.log_info(f"[STEP 2] ✓ Loaded config for {config.device} ({config.protocol})")
-            self.log_info("[STEP 3] ✓ Analyzer marked as ready in shared state")
+            self.log_info(f"[WINDOW] Loaded config for {config.device} ({config.protocol})")
+            self.log_info("[WINDOW] Analyzer marked as ready in shared state")
             
             # Update status (updated when the analyzer is selected)
             self._middleware_status = "Ready"
@@ -291,8 +303,8 @@ class MiddlewareGUI:
             return
         
         try:
-            self.log_info("[STEP 4] Starting middleware server...")
-            self.log_info("[STEP 4] → Initializing HL7 MLLP server...")
+            self.log_info("[WINDOW] Starting middleware server...")
+            self.log_info("[WINDOW] Initializing HL7 MLLP server...")
             
             # Start engine server
             mw_engine.engine.start_server_background(
@@ -302,6 +314,8 @@ class MiddlewareGUI:
                 error_log=self.log_error,
                 network_log=self.log_network_data,
                 serial_log=self.log_serial_data,
+                middleware_ack_log=self.log_middleware_ack_data,
+                middleware_nack_log=self.log_middleware_nack_data
             )
             
             self._engine_running = True
@@ -314,12 +328,9 @@ class MiddlewareGUI:
             )
 
 
-            self.log_info("[STEP 4] ✓ HL7 MLLP server started successfully")
-            self.log_info("[STEP 4] ✓ Server listening on 127.0.0.1:15200")
-            self.log_info("")
-            self.log_info("MIDDLEWARE ENGINE STATUS:")
-            self.log_info("  ✓ Step 1-4: Engine initialized and running")
-            self.log_info("  ✓ Ready to receive HL7 MLLP connections")
+            self.log_info("[WINDOW] HL7 MLLP server started successfully")
+            self.log_info("[WINDOW] Server listening on 127.0.0.1:15200")
+            self.log_info("=== MIDDLEWARE ENGINE STATUS ===")
             self.log_info("Waiting for analyzer connections...")
             
         except Exception as e:

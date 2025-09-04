@@ -38,7 +38,7 @@ class ConfigurableHL7Parser:
         try:
             clean_data = raw_data.strip()
             self.result['raw_segments'] = [clean_data]
-            msg:Message = parse(clean_data)  
+            msg:Message = parse(clean_data)
 
             max_segment_number, len_obx_segments = self._get_max_sequence_number(msg)
             if max_segment_number > len_obx_segments:

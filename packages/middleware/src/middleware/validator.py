@@ -2,6 +2,7 @@ import logging
 import time
 from typing import Dict, Optional, Any
 from typing import Any, Dict, Optional
+from middleware.logger import logger
 from middleware.models import (
     AnalyzerConfig, 
     ErbaMessage, 
@@ -37,6 +38,7 @@ class DataValidator:
                 model=model
             )
             
+            logger.info("Message Validated Successfully")
             return erba_message
             
         except ValidationError as e:
