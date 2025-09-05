@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import Tk, ttk
 from datetime import datetime
-import threading
 import queue
 
 from graphics.Logs.log_manager import LoggingManager

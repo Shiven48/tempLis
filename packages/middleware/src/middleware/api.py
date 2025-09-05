@@ -5,8 +5,9 @@ Handles validated data transmission to external APIs
 
 import asyncio
 import json
+from constants import API_TIMEOUT, BASE_API_URL
 from middleware.logger import logger
-from middleware.models import ErbaMessage
+from middleware.models import APIResult, ErbaMessage
 from typing import (
     Dict, 
     Any
@@ -64,25 +65,26 @@ class APIService:
             self.session = None
             logger.info("Session Closed Successfully")
 
-    async def send_analyzer_data(self, validated_message:ErbaMessage) -> Dict[str, Any]:
+    async def send_analyzer_data(self, validated_message: ErbaMessage) -> APIResult:
         """Send validated analyzer data to API with retry logic"""
-        
+    
         await self._ensure_session()
-        payload:dict[str, Any] = validated_message.model_dump()
+        payload: dict[str, Any] = validated_message.model_dump()
 
         if not isinstance(payload, dict):
             logger.error("The payload must be of type dict")
+            return APIResult(success=False, error="Payload must be of type dict")
 
         endpoint = f"{self.base_url}/lab-results/"
         last_error = None
-        
+    
         for attempt in range(self.retry_attempts):
             try:
                 logger.debug(f"API attempt {attempt + 1}/{self.retry_attempts} to {endpoint}")
-                
+            
                 async with self.session.post(endpoint, json=payload) as response:
                     logger.debug(f"Request sent: {response.status} - Content-Length: {len(json.dumps(payload))}")
-                    
+                
                     # Fetch the response
                     if response.content_type == 'application/json':
                         try:
@@ -92,48 +94,44 @@ class APIService:
                             response_data = {'raw_response': response_text}
                     else:
                         response_data = {'raw_response': await response.text()}
-                    
+                
                     # Success cases
                     if response.status in [200, 201, 202]:
-                        # self.gui_log_callback(f"API success: {response.status}")
-                        return {
-                            'success': True,
-                            'status_code': response.status,
-                            'data': response_data,
-                            'attempt': attempt + 1
-                        }
-                    
+                        return APIResult(
+                            success=True,
+                            data=response_data,
+                            status_code=response.status,
+                            retry_attempted=attempt > 0
+                        )
+                
                     # Client errors (don't retry)
                     elif 400 <= response.status < 500:
                         error_msg = f"Client error {response.status}: {response_data}"
-                        # self.gui_log_callback(error_msg)
-                        return {
-                            'success': False,
-                            'status_code': response.status,
-                            'error': error_msg,
-                            'data': response_data,
-                            'retry_attempted': False
-                        }
-                    
+                        return APIResult(
+                            success=False,
+                            error=error_msg,
+                            data=response_data,
+                            status_code=response.status,
+                            retry_attempted=False
+                        )
+                
                     # Server errors (retry)
                     else:
                         error_msg = f"Server error {response.status}: {response_data}"
-                        # self.gui_log_callback(f"Retryable error on attempt {attempt + 1}: {error_msg}")
                         last_error = error_msg
                         
                         if attempt < self.retry_attempts - 1:
                             await asyncio.sleep(self.retry_delay * (attempt + 1))
                             continue
                         
-                        return {
-                            'success': False,
-                            'status_code': response.status,
-                            'error': error_msg,
-                            'data': response_data,
-                            'retry_attempted': True,
-                            'final_attempt': attempt + 1
-                        }
-                        
+                        return APIResult(
+                            success=False,
+                            error=error_msg,
+                            data=response_data,
+                            status_code=response.status,
+                            retry_attempted=True
+                        )
+                    
             except TimeoutError:
                 error_msg = f"Request timeout after {self.timeout}s (attempt {attempt + 1})"
                 logger.warning(error_msg)
@@ -163,15 +161,15 @@ class APIService:
                 logger.warning(error_msg)
                 last_error = error_msg
                 break
-        
+    
         logger.error(f"All {self.retry_attempts} API attempts failed. Last error: {last_error}")
-        return {
-            'success': False,
-            'error': last_error or 'All retry attempts failed',
-            'status_code': 0,
-            'retry_attempted': True,
-            'final_attempt': self.retry_attempts
-        }
+        return APIResult(
+            success=False,
+            error=last_error or 'All retry attempts failed',
+            status_code=0,
+            retry_attempted=True
+        )
+
     
     async def health_check(self) -> Dict[str, Any]:
         """Check API health/connectivity"""
@@ -204,10 +202,13 @@ class APIService:
 _api_service_instance = None
 
 # Helper methods to access api service methods
-def get_api_service(base_url: str = "http://localhost:8000", timeout: int = 30) -> APIService:
+def get_api_service() -> APIService:
     """Get singleton API service instance"""
     global _api_service_instance
     
+    base_url: str = BASE_API_URL
+    timeout: int = API_TIMEOUT
+
     if _api_service_instance is None:
         _api_service_instance = APIService(base_url, timeout)
     

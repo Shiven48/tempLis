@@ -60,8 +60,6 @@ class MockErbaAnalyzer:
         
             if not cleaned_line:
                 continue
-
-            logger.info(repr(cleaned_line))
         
             message_dict = {
                 'name': f'HL7_Message_{i}',

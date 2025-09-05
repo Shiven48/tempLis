@@ -33,6 +33,8 @@ START_BLOCK = b'\x0b'
 END_BLOCK = b'\x1c'
 CARRIAGE_RETURN = b'\x0d'
 
+# host = "192.168.1.141"
+# port = 5600
 host = "127.0.0.1"
 port = 15200
 BUFFER_SIZE = 4096
@@ -80,5 +82,12 @@ cbc_parameters = {
 }
 
 # Ranges
-OBR_RANGE = 18
 OBX_RANGE = 12
+OBR_RANGE = 18
+
+POSITIVE_ACK_CODE = "AA"
+NEGATIVE_ACK_CODE = "AE"
+
+# Api constants
+BASE_API_URL:str = "http://localhost:8000"
+API_TIMEOUT:int = 30

@@ -1,4 +1,4 @@
-from enum import Enum
+from dataclasses import dataclass, field
 from typing import (
     Dict, 
     Optional, 
@@ -7,6 +7,10 @@ from typing import (
     Union
 )
 import warnings
+from middleware.enums import (
+    TransportMode,
+    Protocol
+)
 from pydantic import (
     BaseModel, 
     Field, 
@@ -15,22 +19,26 @@ from pydantic import (
 )
 import ipaddress
 
-class TransportMode(str, Enum):
-    TCP = "tcp"
-    SERIAL = "serial"
-    UDP = "udp"
+# python dataclasses
+@dataclass
+class APIResult:
+    success: bool
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    status_code: Optional[int] = None
+    retry_attempted: bool = False
 
-class Protocol(str, Enum):
-    HL7 = "HL7"
-    ASTM = "ASTM"
-    HL7_MLLP = "HL7-MLLP"
+@dataclass
+class ParsingResult:
+    message_header: Dict[str, Any] = field(default_factory=dict)
+    order_request: Dict[str, Any] = field(default_factory=dict)
+    test_results: List[Any] = field(default_factory=list)
+    raw_segments: List[str] = field(default_factory=list)
+    parsing_errors: List[str] = field(default_factory=list)
+    findings: List[Any] = field(default_factory=list)
+    error: Optional[str] = None
 
-class Encoding(str, Enum):
-    UTF8 = "utf-8"
-    ASCII = "ascii"
-    LATIN1 = "latin-1"
-    CP1252 = "cp1252"
-
+# pydantic Models 
 class TransportConfig(BaseModel):
     mode: TransportMode = Field(default=TransportMode.TCP)
     host: str = Field(default="127.0.0.1", min_length=1)
@@ -103,7 +111,6 @@ class ParserConfig(BaseModel):
             if missing_fields:
                 warnings.warn(f"OBX missing recommended fields: {missing_fields}")
         return self
-
 
 class AnalyzerConfig(BaseModel):
     """Complete analyzer configuration with validation"""

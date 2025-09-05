@@ -2,7 +2,7 @@ import re
 from typing import Dict, List, Union
 from hl7 import Field, Sequence
 from datetime import datetime
-from constants import ERBA_YAML_PATH
+from constants import ERBA_YAML_PATH, OBX_RANGE
 from middleware.abstracts import Processor
 from middleware.config_loader import ConfigLoader
 from middleware.logger import logger
@@ -326,23 +326,23 @@ class OBXProcessor(Processor):
     def _validate_segment_config(self):
         # optional range(1-6) yaml configuration validation
         if not self.optional_range['type'] == 'range':
-            logger.error("The segment validation failed for optional segment config")
+            logger.error("[Config Error] The segment validation failed for 'optional' segment config")
         elif len(self.optional_range.keys()) != 3:
-            logger.error("The segment validation failed, Expected three keys 'range', 'min' and 'max'")
+            logger.error("[Config Error] The segment validation failed, Expected three keys 'range', 'min' and 'max'")
         logger.info('Optional range configuration validated successfully')
 
         # required range(7-36) yaml configuration validation
         if not self.required_range['type'] == 'range':
-            logger.error("The segment validation failed for required segment config")
+            logger.error("[Config Error] The segment validation failed for 'required' segment config")
         elif len(self.optional_range.keys()) != 3:
-            logger.error("The segment validation failed, Expected three keys 'range', 'min' and 'max'")
+            logger.error("[Config Error] The segment validation failed, Expected three keys 'range', 'min' and 'max'")
         logger.info('Required range configuration validated successfully') 
 
         # findings range(37+) yaml configuration validation
         if not self.findings_range['type'] == 'threshold':
-            logger.error("The segment validation failed for required findings config")
+            logger.error("[Config Error] The segment validation failed for required 'findings' segment config")
         elif len(self.findings_range.keys()) != 2:
-            logger.error("The segment validation failed, Expected three keys 'threshold' and 'min'")
+            logger.error("[Config Error] The segment validation failed, Expected two keys 'threshold' and 'min'")
         logger.info('Findings range configuration validated successfully')
 
     def _check_bounds(self, current_sequence:Field, sequence_type:Field, sequence:Sequence) -> bool:
@@ -351,7 +351,7 @@ class OBXProcessor(Processor):
             current_sequence = int(str(current_sequence))
             sequence_type = str(sequence_type)
         except (ValueError, TypeError):
-            self.errors.append(f"Invalid sequence value: {current_sequence}")
+            self.errors.append(f"[Sequence Number Error] Invalid sequence value: {current_sequence}")
             return False
         
         if self.optional_range['min'] <= current_sequence <= self.optional_range['max']:
@@ -361,7 +361,7 @@ class OBXProcessor(Processor):
         elif current_sequence >= self.findings_range['min']:
             return self._process_findings_range(sequence_type, sequence)
         else:
-            self.errors.append(f"The sequence:{current_sequence} is not within valid range")
+            self.errors.append(f"[Sequence Number Error] The sequence:{current_sequence} is not within valid range")
             return False
     
     def _process_optional_range(self, current_sequence:int, sequence_type:str) -> bool:
@@ -372,7 +372,7 @@ class OBXProcessor(Processor):
             logger.warning(f"Got NM segment type in range {self.optional_range['min']} - {self.optional_range['max']}")
             return True
         else:
-            logger.error(f"Got invalid sequence type: {sequence_type}")
+            logger.error(f"[Sequence Error] Got invalid sequence type: {sequence_type}")
             return False
 
     def _process_required_range(self, value_type: str, sequence: Sequence) -> bool:
@@ -381,21 +381,21 @@ class OBXProcessor(Processor):
         """
     
         if value_type != 'NM':
-            self.errors.append(f"Expected NM segment type in range {self.required_range['min']} - {self.required_range['max']}")
+            self.errors.append(f"[Unexpected Segment Error] Expected NM segment type in range {self.required_range['min']} - {self.required_range['max']}")
             return False
     
-        if len(sequence) != 12:
-            self.errors.append(f"In OBX sequence, Expected 12 fields but got {len(sequence)} at sequence: {int(str(sequence[1]))}")
+        if len(sequence) != OBX_RANGE:
+            self.errors.append(f"[Field Count Error] In OBX sequence, Expected {OBX_RANGE} fields but got {len(sequence)} at sequence: {int(str(sequence[1]))}")
             return False
     
         try:
             current_sequence: int = int(str(sequence[1]))
         except (ValueError, TypeError, IndexError):
-            self.errors.append("Important fields missing - Could not extract sequence number from sequence")
+            self.errors.append("[Sequence Number Error] Important fields missing - Could not extract sequence number from sequence")
             return False
 
         if current_sequence in self.required_sequences:
-            self.errors.append(f"Important fields missing - Duplicate sequence {current_sequence}")
+            self.errors.append(f"[Sequence Number Error] Important fields missing - Duplicate sequence {current_sequence}")
             return False
     
         self.required_sequences[current_sequence] = sequence
@@ -414,18 +414,18 @@ class OBXProcessor(Processor):
     
         if len(required_found) < expected_count:
             missing = expected_range - actual_sequences
-            self.errors.append(f"Important fields missing - Expected {expected_count} sequences (7-36), got {len(required_found)}. Missing sequences: {sorted(missing)}")
+            self.errors.append(f"[Sequence Number Error] Important fields missing - Expected {expected_count} sequences (7-36), got {len(required_found)}. Missing sequences: {sorted(missing)}")
             return False
     
         if len(required_found) > expected_count:
-            self.errors.append(f"Important fields missing - Logic error: found {len(required_found)} sequences in range 7-36")
+            self.errors.append(f"[Sequence Number Error] Important fields missing - Logic error: found {len(required_found)} sequences in range 7-36")
             return False
     
         sorted_sequences = sorted(required_found)
         expected_sequence = sorted(expected_range)
     
         if sorted_sequences != expected_sequence:
-            self.errors.append(f"Important fields missing - Sequences are not consecutive. Expected [7-36], got {sorted_sequences}")
+            self.errors.append(f"[Sequence Number Error] Important fields missing - Sequences are not consecutive. Expected [7-36], got {sorted_sequences}")
             return False
     
         for seq_num in expected_sequence:
@@ -443,7 +443,7 @@ class OBXProcessor(Processor):
             self.valid_findings.append(sequence)
             return True
         else:
-            logger.error(f"Got invalid sequence type: {sequence_type}")
+            logger.error(f"[Sequence Error] Got invalid sequence type: {sequence_type}")
             return False
 
     def parse(self) -> Union[List[dict], tuple[dict, dict]]:
@@ -460,7 +460,7 @@ class OBXProcessor(Processor):
                 try:
                     NM_result.append(self._parse_segment(segment, self.segment_type))
                 except Exception as e:
-                    logger.error(f"Unexpected Exception: {e}")
+                    logger.error(f"[Segment Error] Unexpected Exception: {e}")
 
         # IS handling
         for segment in self.valid_findings:
@@ -526,7 +526,7 @@ def processFactory(segment:str, message_segments:Sequence) -> 'Processor':
             processor = OBXProcessor(message_segments)
         else:
             if segment in ["PV1", "PID"]:
-                logger.warning(f"The segment:{segment} don't have a processor yet try skipping it from yaml")
+                logger.warning(f"[Processor Error] The segment:{segment} don't have a processor yet try skipping it from yaml")
             else:
-                logger.error(f"The segment:{segment} is not valid")
+                logger.error(f"[Invalid Message Type] The segment:{segment} is not valid")
         return processor
