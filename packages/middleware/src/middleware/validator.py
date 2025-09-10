@@ -22,7 +22,7 @@ class DataValidator:
         """Validate parsed data against Pydantic models"""
         try:
             test_results_data = parsed_data.test_results
-            
+
             if not test_results_data:
                 logging.warning("No test results found in parsed data")
                 return None
@@ -38,6 +38,7 @@ class DataValidator:
                     return None
             
             message_header = parsed_data.message_header
+            message_id:str = message_header['message_id']
             machine:str = message_header['machine']
             model:str = message_header['model']
 
@@ -48,6 +49,7 @@ class DataValidator:
                 logger.warning("No findings results found in parsed data")
 
             erba_message:ErbaMessage = ErbaMessage(
+                message_id=message_id,
                 test_results=[ErbaTestResult(**result) for result in parsed_data.test_results],
                 timestamp=time.strftime('%Y-%m-%d %H:%M:%S'),
                 analyzer_id=self.config.device,

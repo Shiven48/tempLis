@@ -11,6 +11,7 @@ parser:
     model: "3"
     machine: "4"
     datetime_of_message: "7"
+    message_id: "10"
   OBR:
     requested_timing: "6"
     reservation_timing: "7"

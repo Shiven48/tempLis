@@ -1,10 +1,12 @@
 import asyncio
 import datetime
+import textwrap
 import threading
 import time
-from typing import Optional, Callable, Tuple
+from typing import List, Optional, Callable
 
-from hl7 import Message
+from hl7 import Message, parse
+from hl7.parser import parse as hl7_parse
 from hl7.mllp import InvalidBlockError
 from hl7.mllp import start_hl7_server, HL7StreamReader, HL7StreamWriter
 
@@ -14,7 +16,7 @@ from middleware.parser import HL7Parser
 from middleware.validator import DataValidator
 from middleware.models import APIResult, AnalyzerConfig, ErbaMessage, ParsingResult
 from middleware.api import APIService, close_api_service, get_api_service
-from constants import ERBA_YAML_PATH, NEGATIVE_ACK_CODE, POSITIVE_ACK_CODE
+from constants import CR, ERBA_YAML_PATH, FS, NEGATIVE_ACK_CODE, POSITIVE_ACK_CODE, VT
 
 class DataHandler:
     def __init__(self, config: AnalyzerConfig):
@@ -111,6 +113,7 @@ class MiddlewareEngine:
             "gui_middleware_ack_callback": None,
             "gui_middleware_nack_callback": None
         }
+        self.nack_sent = False
 
 # Analyzer state handlers
     def select_analyzer(self, analyzer_name: str) -> AnalyzerConfig:
@@ -143,66 +146,276 @@ class MiddlewareEngine:
 # Server actions
     async def handle_hl7_connection(self, reader: HL7StreamReader, writer: HL7StreamWriter):
         """Handle HL7 MLLP connections with integrated processing"""
-        peer = writer.get_extra_info('peername')
-        self._log_info_to_gui(f"[ENGINE] Connection from {peer}")
+        self.peer = writer.get_extra_info('peername')
+        self._log_info_to_gui(f"[ENGINE] Connection from {self.peer}")
+        
+        # Track ACK state for this connection
+        ack_message = None
+        should_send_ack = False
+        processing_failed = False
+        successful_messages = 0
 
         try:
             while not writer.is_closing() and self.is_running:
                 try:
-                    # Read HL7 message from 'HL7StreamReader' instance(Removes MLLP logging)
-                    message:Message = await reader.readmessage()
-                    
-                    self._log_info_to_gui(
-                        f"""[ENGINE] HL7 message received from {peer}
-                        [ENGINE] Handler processing data..."""
-                    )
-                    
-                    # Log the data to the gui network_tab
-                    if self.gui_network_callback:
-                        self.gui_network_callback(message)
-                    else:
-                        self._log_error_to_gui("Network logger not configured properly")
-                    
-                    # Convert the message to string as we are processing it as a string
-                    msg_str:str = str(message)
-                    if self.handler:
-                        validated_message:ErbaMessage | None = self.handler.process_data(msg_str)                        
-                        
-                        if validated_message:
-                            self._log_info_to_gui("[ENGINE] Data parsed and validated successfully")
+                    if not self.validate_network_logger():
+                        break
 
-                            api_result:APIResult = await self._send_to_api(validated_message)
-                            
-                            if not api_result.success:
-                                self._log_error_to_gui(f"Api Error Cause: {api_result.error}")
-                                await self._send_negative_acknowledgement(message, writer)
-                                return
-                            
-                            await self._send_positive_acknowledgement(message, writer)
-                            return
-                        else:
-                            await self._send_negative_acknowledgement(message, writer) 
-                            return
-                    else:
-                        await self._send_negative_acknowledgement(message, writer)
-                        return
-                except InvalidBlockError as e:
-                    self._log_error_to_gui(f"[ENGINE] Invalid HL7 MLLP message block: {str(e)}")
-                    await self._send_negative_acknowledgement(message, writer)
-                    break
-                except asyncio.IncompleteReadError:
-                    self._log_error_to_gui(f"[ENGINE] Client {peer} disconnected gracefully")
-                    break
+                    block: bytes = await reader.read()
+                    # If there is no more data then break out of loop
+                    if not block:
+                        break
+                        
+                    self._log_info_to_gui(f"[ENGINE] HL7 message received from {self.peer} - Handler processing data...")
+                    
+                    # Validate MLLP boundaries
+                    self.parse_message_structure(block)
+                    is_valid, clean_messages, error_msg = self.validate_mllp_boundaries(block)
+                    
+                    if not is_valid:
+                        self.gui_network_callback(block)
+                        self._log_gui_negative_acknowledgement(f"MLLP validation failed: {error_msg}")
+                        processing_failed = True
+
+                        # Creating a dummy message for ACK purposes
+                        ack_message = Message(
+                            separator="|",
+                            sequence=["MSH","^~\\&","UNKNOWN","LIS","","","ERROR","","ACK^R01","NAK001","P","2.3.1"]
+                        ),
+                        should_send_ack = True
+                        break
+                    
+                    batch_success = True
+                    for idx, msg in enumerate(clean_messages, 1):
+                        try:
+                            message: Message = hl7_parse(msg)
+                            self.gui_network_callback(message)
+
+                            # In case of batch the standard practice is to send ack for first message
+                            # that is what we are doing here
+                            if idx == 1:
+                                ack_message = message
+                                should_send_ack = True
+
+                            # Process message
+                            msg_str: str = str(message)
+                            if self.handler:
+                                validated_message: ErbaMessage | None = self.handler.process_data(msg_str)
+                                
+                                if validated_message:
+                                    self._log_info_to_gui(f"[ENGINE] Message {idx} parsed and validated successfully")
+                                    
+                                    # Send to API
+                                    api_result: APIResult = await self._send_to_api(validated_message)
+                                    
+                                    if not api_result.success:
+                                        self._log_error_to_gui(f"API Error for message {idx}: {api_result.error}")
+                                        self._log_gui_negative_acknowledgement(message, f"API failed: {api_result.error}")
+                                        batch_success = False
+                                        processing_failed = True
+                                        break
+                                    else:
+                                        response_data = api_result.data
+                                        if response_data and response_data.get('duplicate', False):
+                                            self._log_info_to_gui(f"[ENGINE] Message {idx} (qr_id: {validated_message.message_id}) is duplicate - skipped")
+                                        else:
+                                            self._log_info_to_gui(f"[ENGINE] Message {idx} (qr_id: {validated_message.message_id}) saved successfully")
+                                        successful_messages += 1
+                                else:
+                                    self._log_error_to_gui(f"[ENGINE] Message {idx} validation failed")
+                                    self._log_gui_negative_acknowledgement(message, "Validation failed")
+                                    batch_success = False
+                                    processing_failed = True
+                                    break
+                            else:
+                                self._log_error_to_gui("[ENGINE] Handler is not configured")
+                                self._log_gui_negative_acknowledgement(message, "Handler not configured")
+                                batch_success = False
+                                processing_failed = True
+                                break
+                                
+                        except Exception as e:
+                            self._log_error_to_gui(f"[ENGINE] Error processing message {idx}: {str(e)}")
+                            self._log_gui_negative_acknowledgement(message, f"Processing error: {str(e)}")
+                            batch_success = False
+                            processing_failed = True
+                            break
+                    
+                    # If batch processing completed (success or failure), we're done with this connection
+                    if batch_success or processing_failed:
+                        break
+                        
                 except Exception as e:
-                    self._log_error_to_gui(f"[ENGINE] Error processing message from {peer}: {str(e)}")
-                    await self._send_negative_acknowledgement(message, writer)
+                    self._log_error_to_gui(f"[ENGINE] Unexpected error in connection loop: {str(e)}")
+                    self._log_gui_negative_acknowledgement(
+                        ack_message or Message(
+                            separator="|",
+                            sequence=["MSH","^~\\&","UNKNOWN","LIS","","","ERROR","","ACK^R01","NAK001","P","2.3.1"]
+                        ),
+                        f"Connection error: {str(e)}"
+                    )
+                    processing_failed = True
+                    should_send_ack = True
                     break
+                    
+        except Exception as e:
+            self._log_error_to_gui(f"[ENGINE] Fatal connection error: {str(e)}")
+            processing_failed = True
+            should_send_ack = True
+            if not ack_message:
+                ack_message = Message(
+                    separator="|",
+                    sequence=["MSH", "^~\\&", "UNKNOWN", "LIS", "", "", "ERROR", "", "ACK^R01", "NAK001", "P", "2.3.1"]
+                )
+                
         finally:
-            # Force writer to close(if not closed can lead to security issues)
+            if should_send_ack and ack_message:
+                try:
+                    await self._send_positive_acknowledgement_to_analyzer(ack_message, writer)
+                    
+                    if not processing_failed and len(clean_messages) == successful_messages:
+                        self._log_gui_positive_acknowledgement(ack_message)
+                    elif successful_messages == 0:
+                        self._log_info_to_gui("[ENGINE] Batch processing failed completely - individual NAKs already logged")
+                    else:
+                        self._log_info_to_gui(f"[ENGINE] Batch processing completed with mixed results ({successful_messages}/{len(clean_messages)} successful) - individual NAKs already logged for failures")
+                except Exception as ack_error:
+                    self._log_error_to_gui(f"[ENGINE] Failed to send ACK: {str(ack_error)}")
+            
+            # Clean up connection
             if not writer.is_closing():
                 writer.close()
                 await writer.wait_closed()
-            self._log_info_to_gui(f"[ENGINE] Connection with {peer} fully closed")
+            self._log_info_to_gui(f"[ENGINE] Connection with {self.peer} fully closed")
+
+
+    def parse_message_structure(self, raw_message_bytes: bytes):
+        """Debug function to understand message structure"""        
+        logger.info(f"Total message length: {len(raw_message_bytes)}")
+        
+        FSCR = FS + CR
+        vt_count = raw_message_bytes.count(VT)
+        fs_count = raw_message_bytes.count(FS)
+        total_cr_count = raw_message_bytes.count(CR)        
+        mllp_terminators = raw_message_bytes.count(FSCR)    
+        cr_count = total_cr_count - mllp_terminators
+        
+        logger.info(f"VT count: {vt_count}, FS count: {fs_count}, CR count: {cr_count}")
+        
+        self.vt_positions = self.count_VT(raw_message_bytes)
+        self.vt_count = len(self.vt_positions)
+        
+        self.fscr_positions = self.count_FSCR(raw_message_bytes)
+        self.fscr_count = len(self.fscr_positions)
+
+        logger.info(f"{self.vt_positions} -> {self.vt_count}")
+        logger.info(f"{self.fscr_positions} -> {self.fscr_count}")
+
+    def count_VT(self, raw_message: bytes) -> list[int]:
+        vt_positions:list = []
+        pos = 0
+
+        while True:
+            pos = raw_message.find(VT, pos)
+            if pos == -1:
+                break
+            vt_positions.append(pos)
+            pos += len(VT)
+
+        return vt_positions
+
+    def count_FSCR(self, raw_message: bytes) -> list[int]:
+        fs_cr_positions:list = []
+        pos = 0
+
+        while True:
+            pos = raw_message.find(FS + CR, pos)            
+            if pos == -1:
+                break
+            fs_cr_positions.append(pos)
+            pos += len(VT)
+
+        return fs_cr_positions
+
+    def validate_mllp_boundaries(self, raw_message_bytes: bytes) ->  tuple[bool, List[bytes], Optional[str]]:
+        """
+        Validates HL7 MLLP message boundaries with comprehensive structure checking:
+        - Validates VT/FS+CR count matching
+        - Ensures each VT is followed by MSH
+        - Handles both single messages and batch messages
+        - Extracts clean message content
+        
+        Args:
+            raw_message_bytes (bytes): The raw message bytes from MLLP stream
+            
+        Returns:
+            tuple: (is_valid: bool, clean_messages: List[bytes], error_message: str or None)
+        """    
+        if not raw_message_bytes:
+            return False, [], "Empty message"
+    
+        if self.vt_count != self.fscr_count:
+            return False, [], f"MLLP frame mismatch: VT count ({self.vt_count}) != FS+CR count ({self.fscr_count})"
+    
+        if not self.validate_raw_message_structure(raw_message_bytes):
+            return False, [], "Invalid MLLP structure: VT not immediately followed by MSH segment"
+    
+        clean_messages = []
+    
+        try:
+            for i in range(len(self.vt_positions)):
+                vt_pos = self.vt_positions[i]
+                fscr_pos = self.fscr_positions[i]
+            
+                content_start = vt_pos + 1
+                content_end = fscr_pos
+
+                if content_start >= content_end:
+                    return False, [], f"Invalid frame {i+1}: VT at {vt_pos}, FS+CR at {fscr_pos}"
+            
+                message_content:bytes = raw_message_bytes[content_start:content_end]
+            
+                if not message_content.startswith(b'MSH|'):
+                    return False, [], f"Frame {i+1} content does not start with MSH segment"
+                clean_messages.append(message_content)
+            
+            return True, clean_messages, None
+        except IndexError as e:
+            return False, [], f"Index error during message extraction: {str(e)}"
+        except Exception as e:
+            return False, [], f"Unexpected error during validation: {str(e)}"
+
+    def validate_raw_message_structure(self, raw_message: bytes) -> bool:
+        """
+        Validates that each VT position is immediately followed by MSH segment
+        
+        Args:
+            raw_message (bytes): The raw message bytes
+            
+        Returns:
+            bool: True if all VT positions are valid, False otherwise
+        """
+        try:
+            for i, vt_pos in enumerate(self.vt_positions):
+                if vt_pos + 4 > len(raw_message):
+                    logger.error(f"VT at position {vt_pos} extends beyond message bounds")
+                    return False
+                
+                msh_start = vt_pos + 1
+                msh_end = msh_start + 3
+                msh_bytes = raw_message[msh_start:msh_end]
+                
+                logger.info(f"Frame {i+1}: VT@{vt_pos} -> MSH check: {msh_bytes}")
+                
+                if msh_bytes != b'MSH':
+                    logger.error(f"VT at position {vt_pos} not followed by MSH. Found: {msh_bytes}")
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error validating message structure: {str(e)}")
+            return False
 
     async def _send_to_api(self, validated_message: ErbaMessage) -> APIResult:
         """Send validated data to API endpoint and return API result"""
@@ -223,61 +436,67 @@ class MiddlewareEngine:
             raise
 
 # ACK & NACK processing
-    async def _send_positive_acknowledgement(self, message: Message, writer: HL7StreamWriter):
-        ack_sent, errors = await self._send_acknowledgement(
-            ack_code=POSITIVE_ACK_CODE, 
-            message=message, 
-            writer=writer
-        )
-        self._process_acknowledgement(POSITIVE_ACK_CODE, ack_sent, errors)
-
-    async def _send_negative_acknowledgement(self, message: Message, writer: HL7StreamWriter):
-        ack_sent, errors = await self._send_acknowledgement(
-            ack_code=NEGATIVE_ACK_CODE, 
-            message=message, 
-            writer=writer
-        )
-        self._process_acknowledgement(NEGATIVE_ACK_CODE, ack_sent, errors)
-
-    async def _send_acknowledgement(
-            self, 
-            ack_code: str, 
-            message: Message, 
-            writer: HL7StreamWriter
-    ) -> Tuple[bool, str]:
+    async def _send_positive_acknowledgement_to_analyzer(self, message: Message, writer: HL7StreamWriter):
+        """Send positive ACK to analyzer (always AA regardless of internal processing result)"""
         try:
-            ack = message.create_ack(ack_code=ack_code)
-            writer.writemessage(ack)
-            await writer.drain()
-            return True, ""
+            ack: Message = message.create_ack(ack_code=POSITIVE_ACK_CODE)
+            await self._write_message_to_analyzer(ack, writer)
+            logger.info(f"Positive ACK sent to analyzer: {ack}")
+            return True
         except Exception as e:
-            return False, str(e)
+            logger.error(f"Failed to send ACK to analyzer: {str(e)}")
+            raise
 
-    def _process_acknowledgement(self, ack_code:str, ack_sent: bool, error_msg: str):
-        if not ack_sent:
-            self.gui_error_callback(f"unable to send acknowledgement to analyzer: {error_msg}")
+    def _log_gui_positive_acknowledgement(self, message: Message):
+        """Log positive acknowledgement to GUI only"""
+        try:
+            ack: Message = message.create_ack(ack_code=POSITIVE_ACK_CODE)
+            self._log_acknowledgement_to_gui(POSITIVE_ACK_CODE, ack)
+        except Exception as e:
+            logger.error(f"Failed to log GUI ACK: {str(e)}")
+
+    def _log_gui_negative_acknowledgement(self, message_or_error: Message | str, reason: str = "Processing failed"):
+        """Log negative acknowledgement to GUI only (never sent to analyzer)"""
+        try:
+            if isinstance(message_or_error, str):
+                # Create dummy message for GUI logging
+                nack_message = Message("MSH|^~\\&|UNKNOWN|LIS|||ERROR||ACK^R01|NAK001|P|2.3.1")
+            else:
+                nack_message = message_or_error.create_ack(ack_code=NEGATIVE_ACK_CODE)
+            
+            self._log_acknowledgement_to_gui(NEGATIVE_ACK_CODE, nack_message, reason)
+        except Exception as e:
+            logger.error(f"Failed to log GUI NACK: {str(e)}")
+
+    def _log_acknowledgement_to_gui(self, ack_code: str, message: Message, reason: str = None):
+        """Log acknowledgement message to GUI with proper formatting"""
+        if not (self.gui_log_callback and self.gui_middleware_ack_callback):
+            logger.error("GUI log handlers are not configured properly")
             return
         
-        if not(self.gui_log_callback and self.gui_middleware_ack_callback):
-            logger.error("Gui log handlers are not configured properly")
+        str_msg: str = str(message)
+        segments = str_msg.split("MSA|")
+        if len(segments) > 1:
+            formatted_msg = segments[0] + "\n" + textwrap.indent("MSA|" + segments[1], " " * 12)
         else:
-            if error_msg:
-                logger.error(f"Errors: {error_msg}")
-        
-        if ack_code == 'AA':
-            self._log_ack()
-        elif ack_code == 'AE':
-            self._log_nack()
+            formatted_msg = str_msg
+
+        if ack_code == POSITIVE_ACK_CODE:  # 'AA'
+            self._log_info_to_gui("[ENGINE] Data processed successfully, ACK logged")
+            self.gui_middleware_ack_callback(formatted_msg)
+        elif ack_code == NEGATIVE_ACK_CODE:  # 'AE'
+            reason_msg = f" - {reason}" if reason else ""
+            self._log_error_to_gui(f"[ENGINE] Processing failed{reason_msg}, NACK logged")
+            self.gui_middleware_nack_callback(formatted_msg)
         else:
-            logger.error(f"ack_code: {ack_code} not Valid")
+            logger.error(f"Unknown ack_code: {ack_code}")
 
-    def _log_ack(self):
-        self._log_info_to_gui("[ENGINE] Data sent to API, ACK sent")
-        self.gui_middleware_ack_callback(" [ACK] ")  
-
-    def _log_nack(self):
-        self._log_info_to_gui("[ENGINE] Data sent to API, NACK sent")
-        self.gui_middleware_nack_callback(" [NACK] ")  
+    async def _write_message_to_analyzer(self, response:Message, writer:HL7StreamWriter):
+        try:
+            writer.writemessage(response)
+            await writer.drain()
+        except Exception as e:
+            raise e
 
 # Wrapper on logging messages to gui or server logger(as fallback)
     def _log_info_to_gui(self, msg_str:str):
@@ -292,11 +511,16 @@ class MiddlewareEngine:
         else:
             logger.error(f"{msg_str}")
     
-        # if self.gui_error_callback:
-        #     self.gui_error_callback(f"[ENGINE] Invalid HL7 MLLP message block: {e}")
-        # else:
-        #     logger.error(f"Invalid HL7 MLLP message block")
-
+    def validate_network_logger(self) -> bool:
+        if not self.gui_network_callback:
+            if self.gui_error_callback:
+                self.gui_error_callback("Network logger not configured properly")
+                return False
+            else:
+                logger.error("Network logger not configured properly")
+                return False
+        return True
+    
 # Server lifecycle
     async def _run_server(self, host: str = "127.0.0.1", port: int = 15200):
         """Run the HL7 MLLP server"""
@@ -449,20 +673,20 @@ if __name__ == '__main__':
         # Start with console logging
         engine.start_server_background(gui_log=console_log)
         
-        print("Server started. Press Ctrl+C to stop...")
+        logger.info("Server started. Press Ctrl+C to stop...")
         
         # Keep main thread alive
         while True:
             time.sleep(1)
             if not engine.is_running:
-                print("Server stopped unexpectedly")
+                logger.info("Server stopped unexpectedly")
                 break
                 
     except KeyboardInterrupt:
-        print("\n===== Shutting Down =====")
+        logger.info("\n===== Shutting Down =====")
         engine.stop_server_background()
-        print("Engine stopped")
+        logger.info("Engine stopped")
     except Exception as e:
-        print(f"Fatal error: {e}")
+        logger.info(f"Fatal error: {e}")
         import traceback
         traceback.print_exc()

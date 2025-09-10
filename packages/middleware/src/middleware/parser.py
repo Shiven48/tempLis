@@ -1,10 +1,9 @@
 from pathlib import Path
 from hl7 import Message, Sequence, parse
-from typing import Dict, List, Any
+from typing import Dict, List
 from middleware.abstracts import Processor
 from middleware.logger import logger
 from middleware.config_loader import ConfigLoader
-from constants import cbc_parameters
 from middleware.models import ParserConfig, ParsingResult
 from middleware.processor import processFactory
 
@@ -37,8 +36,12 @@ class ConfigurableHL7Parser:
             msg:Message = parse(clean_data)
 
             max_segment_number, len_obx_segments = self._get_max_sequence_number(msg)
-            if max_segment_number > len_obx_segments:
-                self.result.parsing_errors.append(f"[Sequence Error] Captured {len_obx_segments} but max sequence number is {max_segment_number}")
+
+            if max_segment_number == 0 or len_obx_segments == 0:
+                self.result.parsing_errors.append(f"[Sequence Error] Captured 0 sequences. OBX segments missing")
+
+            if max_segment_number != len_obx_segments:
+                self.result.parsing_errors.append(f"[Sequence Error] Captured {len_obx_segments} sequences but the max sequence number is {max_segment_number}, {max_segment_number - len_obx_segments} sequences missing")
             
             if not self._message_parse_and_validate(msg):
                 self.result.parsing_errors.append("[Sequence Error] OBX sequence validation failed")
@@ -60,11 +63,20 @@ class ConfigurableHL7Parser:
         sequence_numbers:List[int] = []
         
         for obx in obx_segments:
-            sequence_number = int(obx[1][0])
-            sequence_numbers.append(sequence_number)
+            try:
+                sequence_number = int(obx[1][0])
+                sequence_numbers.append(sequence_number)
+            except (ValueError, IndexError, TypeError) as e:
+                logger.warning(f"Invalid sequence number in OBX segment: {e}")
+                continue
+        
+        if not sequence_numbers:
+            return 0, len(obx_segments)
         
         max_segment_number = max(sequence_numbers)
         len_obx_segments = len(obx_segments)
+
+        logger.info(f"{max_segment_number} -> {len_obx_segments}")
         return max_segment_number, len_obx_segments
 
     def _message_parse_and_validate(self, parsed_message:Message) -> bool:

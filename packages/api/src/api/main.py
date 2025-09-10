@@ -1,4 +1,3 @@
-from platform import machine
 from fastapi import FastAPI
 from sqlalchemy import JSON, ForeignKey, create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship
@@ -11,7 +10,8 @@ Base = declarative_base()
 class TestResult(Base):
     __tablename__ = "test_results"
     
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True) 
+    message_id = Column(String, nullable=False, index=True)
     analyzer_id = Column(String, index=True)
     timestamp = Column(DateTime)
     test_code = Column(String, index=True)
@@ -21,12 +21,13 @@ class TestResult(Base):
     reference_range = Column(String)
     flags = Column(String)
     lab_message_id = Column(Integer, ForeignKey('lab_messages.id'), index=True)
-    lab_message = relationship("LabMessage", back_populates="test_results")    
+    lab_message = relationship("LabMessage", back_populates="test_results")   
 
 class LabMessage(Base):
     __tablename__ = "lab_messages"
     
     id = Column(Integer, primary_key=True, index=True)
+    message_id = Column(String, unique=True, nullable=False, index=True)  # Add this line
     analyzer_id = Column(String, index=True)
     timestamp = Column(DateTime)
     raw_segments = Column(Text)

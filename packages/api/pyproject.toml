@@ -10,7 +10,7 @@ dependencies = [
     "python-multipart>=0.0.6"
 ]
 description = "Laboratory Results API with FastAPI and SQLite"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]  # Adjust this based on your actual directory structure

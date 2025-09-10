@@ -143,6 +143,7 @@ class ErbaTestResult(BaseModel):
     flags: Optional[str] = None
 
 class ErbaMessage(BaseModel):
+    message_id: str = Field(..., min_length=1)
     test_results: List[ErbaTestResult] = Field(..., min_items=1)
     timestamp: str = Field(..., min_length=1)
     analyzer_id: str = Field(..., min_length=1)

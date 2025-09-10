@@ -4,7 +4,7 @@ NAK = b'\x15'
 EOT = b'\x04'
 STX = b'\x02'
 ETX = b'\x03'
-CR  = b'\r'
+CR = b'\x0d'  
 LF  = b'\n'
 
 control_map = {
@@ -29,9 +29,8 @@ CONTROL_CHAR_TO_BYTE = {
     'LF' : LF
 }
 
-START_BLOCK = b'\x0b'
-END_BLOCK = b'\x1c'
-CARRIAGE_RETURN = b'\x0d'
+VT = b'\x0b'
+FS = b'\x1c'  
 
 # host = "192.168.1.141"
 # port = 5600

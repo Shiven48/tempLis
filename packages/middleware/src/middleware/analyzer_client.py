@@ -10,13 +10,6 @@ import socket
 import time
 import sys
 
-from middleware.logger import logger
-from packages.middleware.src.constants import (
-    START_BLOCK,
-    END_BLOCK,
-    CARRIAGE_RETURN,
-)
-
 class MockErbaAnalyzer:
     def __init__(self, host="127.0.0.1", port=15200):
         self.host = host
@@ -53,10 +46,10 @@ class MockErbaAnalyzer:
             cleaned_line = line.strip()
     
             # Use actual control characters, not escaped strings
-            cleaned_line = cleaned_line.replace('[VT]', chr(11))   # \x0B
-            cleaned_line = cleaned_line.replace('[CR]', chr(13))   # \r  
-            cleaned_line = cleaned_line.replace('[FS]', chr(28))   # \x1C
-            cleaned_line = cleaned_line.replace('[LF]', chr(10))   # \n
+            cleaned_line = cleaned_line.replace('[VT]', chr(11))
+            cleaned_line = cleaned_line.replace('[CR]', chr(13))    
+            cleaned_line = cleaned_line.replace('[FS]', chr(28))  
+            cleaned_line = cleaned_line.replace('[LF]', chr(10))  
         
             if not cleaned_line:
                 continue
@@ -77,10 +70,7 @@ class MockErbaAnalyzer:
             print(f"   Preview: {message_data[:60]}...")
             
             # 1. Encode the HL7 string to bytes
-            hl7_bytes = message_data.encode('utf-8')
-            
-            # 2. Wrap the bytes in the MLLP frame
-            framed_message = START_BLOCK + hl7_bytes + END_BLOCK + CARRIAGE_RETURN
+            framed_message = message_data.encode('utf-8')
             
             # 3. Send the complete framed message using sendall
             self.socket.sendall(framed_message)

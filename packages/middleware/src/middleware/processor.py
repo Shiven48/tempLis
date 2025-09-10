@@ -56,6 +56,15 @@ class MSHProcessor(Processor):
             len(machine.strip()) <= 227 and        
             len(machine.strip()) >= 2              
         )
+    
+    def validate_message_id(self, message_id: str) -> bool:
+        """Validate message_id field"""
+        if not message_id:
+            return False
+        if not (20 <= len(message_id) <= 35):
+            return False
+        return True
+
 
     def validate_datetime_of_message(self, datetime_str: str) -> bool:
         """Validate HL7 datetime format and logical date"""
@@ -89,6 +98,7 @@ class MSHProcessor(Processor):
         model_valid:bool = self.validate_model(str(msh_segment[3]))
         machine_valid = self.validate_machine(str(msh_segment[4]))  
         datetime_valid = self.validate_datetime_of_message(str(msh_segment[7]))
+        message_id_valid: bool = self.validate_message_id(str(msh_segment[10]))
         
         if not model_valid:
             self.errors.append(f"Invalid model field: '{msh_segment[3]}'")
@@ -98,8 +108,11 @@ class MSHProcessor(Processor):
         
         if not datetime_valid:
             self.errors.append(f"Invalid datetime_of_message field: '{msh_segment[7]}'")
+
+        if not message_id_valid:
+            self.errors.append(f"Invalid message_id field: {msh_segment[10]}")
         
-        return model_valid and machine_valid and datetime_valid
+        return model_valid and machine_valid and datetime_valid and message_id_valid
     
     
     def _recursive_fetch(self, segment: Union[Sequence, str], index: str):
@@ -383,6 +396,8 @@ class OBXProcessor(Processor):
         if value_type != 'NM':
             self.errors.append(f"[Unexpected Segment Error] Expected NM segment type in range {self.required_range['min']} - {self.required_range['max']}")
             return False
+        
+        logger.info(f"The length of sequence is: {len(sequence)} -> {sequence}")
     
         if len(sequence) != OBX_RANGE:
             self.errors.append(f"[Field Count Error] In OBX sequence, Expected {OBX_RANGE} fields but got {len(sequence)} at sequence: {int(str(sequence[1]))}")
