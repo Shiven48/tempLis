@@ -5,9 +5,8 @@ import threading
 import time
 from typing import List, Optional, Callable
 
-from hl7 import Message, parse
+from hl7 import Message, Segment
 from hl7.parser import parse as hl7_parse
-from hl7.mllp import InvalidBlockError
 from hl7.mllp import start_hl7_server, HL7StreamReader, HL7StreamWriter
 
 from middleware.config_loader import ConfigLoader
@@ -174,14 +173,10 @@ class MiddlewareEngine:
                     
                     if not is_valid:
                         self.gui_network_callback(block)
-                        self._log_gui_negative_acknowledgement(f"MLLP validation failed: {error_msg}")
+                        self._log_gui_negative_acknowledgement(message_or_error="", reason=f"MLLP validation failed: {error_msg}")
                         processing_failed = True
 
-                        # Creating a dummy message for ACK purposes
-                        ack_message = Message(
-                            separator="|",
-                            sequence=["MSH","^~\\&","UNKNOWN","LIS","","","ERROR","","ACK^R01","NAK001","P","2.3.1"]
-                        ),
+                        ack_message = self.create_nack("Invalid MLLP Boundry")
                         should_send_ack = True
                         break
                     
@@ -248,11 +243,7 @@ class MiddlewareEngine:
                 except Exception as e:
                     self._log_error_to_gui(f"[ENGINE] Unexpected error in connection loop: {str(e)}")
                     self._log_gui_negative_acknowledgement(
-                        ack_message or Message(
-                            separator="|",
-                            sequence=["MSH","^~\\&","UNKNOWN","LIS","","","ERROR","","ACK^R01","NAK001","P","2.3.1"]
-                        ),
-                        f"Connection error: {str(e)}"
+                        ack_message or self.create_nack(f"Connection error: {str(e)}")
                     )
                     processing_failed = True
                     should_send_ack = True
@@ -263,10 +254,7 @@ class MiddlewareEngine:
             processing_failed = True
             should_send_ack = True
             if not ack_message:
-                ack_message = Message(
-                    separator="|",
-                    sequence=["MSH", "^~\\&", "UNKNOWN", "LIS", "", "", "ERROR", "", "ACK^R01", "NAK001", "P", "2.3.1"]
-                )
+                ack_message = self.create_nack("Unknown Error")
                 
         finally:
             if should_send_ack and ack_message:
@@ -459,8 +447,7 @@ class MiddlewareEngine:
         """Log negative acknowledgement to GUI only (never sent to analyzer)"""
         try:
             if isinstance(message_or_error, str):
-                # Create dummy message for GUI logging
-                nack_message = Message("MSH|^~\\&|UNKNOWN|LIS|||ERROR||ACK^R01|NAK001|P|2.3.1")
+                nack_message = self.create_nack(reason)
             else:
                 nack_message = message_or_error.create_ack(ack_code=NEGATIVE_ACK_CODE)
             
@@ -474,13 +461,7 @@ class MiddlewareEngine:
             logger.error("GUI log handlers are not configured properly")
             return
         
-        str_msg: str = str(message)
-        segments = str_msg.split("MSA|")
-        if len(segments) > 1:
-            formatted_msg = segments[0] + "\n" + textwrap.indent("MSA|" + segments[1], " " * 12)
-        else:
-            formatted_msg = str_msg
-
+        formatted_msg: str = self.format_response(message)
         if ack_code == POSITIVE_ACK_CODE:  # 'AA'
             self._log_info_to_gui("[ENGINE] Data processed successfully, ACK logged")
             self.gui_middleware_ack_callback(formatted_msg)
@@ -520,6 +501,44 @@ class MiddlewareEngine:
                 logger.error("Network logger not configured properly")
                 return False
         return True
+    
+    def create_nack(self, reason: str) -> Message:
+        nack_message:Message = Message()
+        msh_segment = Segment(sequence=[
+            "MSH",
+            "|",
+            "",
+            "UNKNOWN",
+            "",
+            datetime.datetime.now().strftime("%Y%m%d%H%M%S"),
+            "",
+            "ACK", 
+            "NAK001",
+            "P",
+            "2.3.1"
+        ])        
+        nack_message.append(msh_segment)
+        nack_message.append(Segment(sequence=['MSA', 'AR', 'NAK001']))
+        nack_message.append(Segment(sequence=[
+            'ERR', '', '', '207^Application Internal Error^HL70357', '', '', 'T', str(reason)
+        ]))
+
+        return nack_message
+    
+    def format_response(self, message: Message, indent_chars=" "*12):
+        """
+        Formats an hl7.Message object as a human-readable string with
+        indented segments after the MSH.
+        """
+        str_msg = str(message)
+        segments = str_msg.split('\r')
+        if not segments or not segments[0]:
+            return ""
+        formatted_lines = [segments[0]]
+        for segment in segments[1:]:
+            if segment:
+                formatted_lines.append(indent_chars + segment)
+        return '\n'.join(formatted_lines)
     
 # Server lifecycle
     async def _run_server(self, host: str = "127.0.0.1", port: int = 15200):
