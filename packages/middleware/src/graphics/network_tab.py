@@ -1,10 +1,11 @@
+import os
 import tkinter as tk
 from tkinter import ttk, messagebox
-import os
-from constants import ERBA_YAML_DIRECTORY
+
+from erba import ERBA_YAML_DIRECTORY
 import yaml
 
-from graphics.Logs.logs_widget import TextWidgetLogger, LogWidget
+from graphics.logs.logs_widget import TextWidgetLogger, LogWidget
 
 class NetworkTab:
 
@@ -391,7 +392,7 @@ class NetworkTab:
 # import os
 # import yaml
 
-# from graphics.Logs.logs_widget import TextWidgetLogger, LogWidget
+# from graphics.logs.logs_widget import TextWidgetLogger, LogWidget
 
 # class NetworkTab:
     

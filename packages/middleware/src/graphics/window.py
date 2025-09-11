@@ -3,16 +3,16 @@ from tkinter import Tk, ttk
 from datetime import datetime
 import queue
 
-from graphics.Logs.log_manager import LoggingManager
+from graphics.logs.log_manager import LoggingManager
 from graphics.serial_tab import SerialTab
 from graphics.network_tab import NetworkTab
-from graphics.Logs.logs_tab import InfoLogTab, ErrorLogTab
+from graphics.logs.logs_tab import InfoLogTab, ErrorLogTab
 
-from constants import host, port
-from middleware.models import AnalyzerConfig
+from erba.constants import host, port
+from erba.models import AnalyzerConfig
 
 try:
-    import middleware as mw_engine
+    import erba as mw_engine
     MIDDLEWARE_AVAILABLE = True
 except Exception as e:
     print(f"Warning: Middleware engine not available: {e}")
@@ -60,8 +60,8 @@ class MiddlewareGUI:
         # Add tabs to notebook
         self.notebook.add(self.network_tab.frame, text='Network Communication')
         self.notebook.add(self.serial_tab.frame, text='Serial Communication')
-        self.notebook.add(self.info_logs_tab.frame, text='Info Logs')
-        self.notebook.add(self.error_logs_tab.frame, text='Error Logs')
+        self.notebook.add(self.info_logs_tab.frame, text='Info logs')
+        self.notebook.add(self.error_logs_tab.frame, text='Error logs')
         # self.notebook.pack(expand=True, fill='both', pady=(0, 10))
         self.notebook.pack(expand=True, fill='both')
 
@@ -129,7 +129,7 @@ class MiddlewareGUI:
         self.stop_engine_btn.configure(state=tk.DISABLED)
         
         # Test buttons for development
-        self.clear_all_logs_btn = ttk.Button(row2, text="Clear All Logs", command=self.clear_all_logs)
+        self.clear_all_logs_btn = ttk.Button(row2, text="Clear All logs", command=self.clear_all_logs)
         self.clear_all_logs_btn.pack(side='left', padx=5)
         
         # Row 3: Quick Stats
@@ -152,7 +152,7 @@ class MiddlewareGUI:
         self.time_label.config(text=current_time)
         self.root.after(1000, self.update_time)
     
-    # Logs callbacks
+    # logs callbacks
     def log_info(self, message: str):
         """Public, thread-safe method to log a general info message."""
         self.message_queue.put(('info', {'message': message}, None))
@@ -395,10 +395,10 @@ if __name__ == "__main__":
 # import threading
 # import queue
 
-# from graphics.Logs.log_manager import LoggingManager
+# from graphics.logs.log_manager import LoggingManager
 # from graphics.serial_tab import SerialTab
 # from graphics.network_tab import NetworkTab
-# from graphics.Logs.logs_tab import InfoLogTab, ErrorLogTab
+# from graphics.logs.logs_tab import InfoLogTab, ErrorLogTab
 
 # try:
 #     import middleware as mw_engine
@@ -481,8 +481,8 @@ if __name__ == "__main__":
 #         # Add tabs to notebook with improved styling
 #         self.notebook.add(self.network_tab.frame, text='  Network Communication  ')
 #         self.notebook.add(self.serial_tab.frame, text='  Serial Communication  ')
-#         self.notebook.add(self.info_logs_tab.frame, text='  Info Logs  ')
-#         self.notebook.add(self.error_logs_tab.frame, text='  Error Logs  ')
+#         self.notebook.add(self.info_logs_tab.frame, text='  Info logs  ')
+#         self.notebook.add(self.error_logs_tab.frame, text='  Error logs  ')
 #         self.notebook.pack(expand=True, fill='both', pady=(10, 0))
 
 #         # Start message queue processor
@@ -679,7 +679,7 @@ if __name__ == "__main__":
 #         utility_controls.pack(side='left')
         
 #         self.clear_all_logs_btn = ttk.Button(utility_controls, 
-#                                            text="🗑 Clear All Logs", 
+#                                            text="🗑 Clear All logs", 
 #                                            command=self.clear_all_logs,
 #                                            style='Modern.TButton')
 #         self.clear_all_logs_btn.pack(side='left')

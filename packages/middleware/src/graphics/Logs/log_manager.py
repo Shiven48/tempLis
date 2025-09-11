@@ -1,7 +1,7 @@
 from typing import Dict, Optional
-from graphics.Logs.base import LoggerBase
-from graphics.Logs.logs_widget import TextWidgetLogger
-from middleware import logger as log
+from graphics.logs.base import LoggerBase
+from graphics.logs.logs_widget import TextWidgetLogger
+from configuration.logger import logger as log
 
 
 class LoggingManager:

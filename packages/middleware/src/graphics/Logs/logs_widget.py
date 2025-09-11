@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import scrolledtext
 from datetime import datetime
-from graphics.Logs.base import LoggerBase
+from graphics.logs.base import LoggerBase
 
 class LogWidget(scrolledtext.ScrolledText):
     """A standardized, themed scrolled text widget for logging."""

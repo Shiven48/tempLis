@@ -2,14 +2,14 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
 import threading
-from graphics.Logs.logs_widget import LogWidget, TextWidgetLogger
+from graphics.logs.logs_widget import LogWidget, TextWidgetLogger
 from graphics.utils import parse_input_with_control_chars, pretty_logger
 import serial
 import socket
 import time
 import yaml
 import os
-from constants import ACK, ENQ, ERBA_YAML_DIRECTORY,NAK 
+from erba.constants import ACK, ENQ, ERBA_YAML_DIRECTORY,NAK 
 
 class SerialTab:
 

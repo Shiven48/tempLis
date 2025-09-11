@@ -1,6 +1,6 @@
 import re
 import requests
-from constants import CONTROL_CHAR_TO_BYTE, control_map
+from erba.constants import CONTROL_CHAR_TO_BYTE, control_map
 
 
 def parse_input_with_control_chars(self, input_str: str) -> bytes:

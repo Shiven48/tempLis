@@ -6,13 +6,12 @@ from datetime import datetime
 from fastapi import Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
-from middleware import logger
-from middleware.models import ErbaMessage
+from erba.models import ErbaMessage
 
 from .database import get_db
 from .models import LabResultsCreateResponse, HealthCheckResponse
 from .services import LabResultsService
-
+from .logging_setup import logger
 
 async def log_requests_middleware(request: Request, call_next):
     """

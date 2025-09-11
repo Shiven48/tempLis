@@ -1,5 +1,5 @@
 from tkinter import ttk
-from graphics.Logs.logs_widget import LogWidget, TextWidgetLogger
+from graphics.logs.logs_widget import LogWidget, TextWidgetLogger
 
 
 class InfoLogTab:

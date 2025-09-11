@@ -7,10 +7,10 @@ from typing import Optional
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 
-from middleware import logger
-from middleware.models import ErbaMessage
+from erba.models import ErbaMessage
 
 from .models import LabMessage, TestResult, LabResultsCreateResponse
+from .logging_setup import logger
 
 
 class LabResultsService:
