@@ -1,4 +1,4 @@
-from erba import logger
+from configuration.logger import logger
 from erba.api import APIService, get_api_service
 from erba.models import ErbaMessage
 from pydantic import ValidationError

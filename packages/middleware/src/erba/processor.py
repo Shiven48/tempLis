@@ -2,20 +2,43 @@ import re
 from typing import Dict, List, Union
 from hl7 import Field, Sequence
 from datetime import datetime
-from configuration import logger, ConfigLoader
+from configuration.logger import logger
 from erba.abstracts import Processor
 from erba.models import ParserConfig, SegmentsConfig
 from erba.constants import ERBA_YAML_PATH, OBX_RANGE
 
 class MSHProcessor(Processor):
-
     def __init__(self, message_sequence: Sequence):
         self.message_segments:Sequence = message_sequence
         self.segment_type = 'MSH'
-        self.parser_config:ParserConfig = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
-        self.msh_config_dict:Dict = self.parser_config.MSH
+        self._parser_config: ParserConfig = None
+        self._msh_config_dict: Dict = None
         self.errors:List[str] = []
 
+    @property
+    def parser_config(self) -> ParserConfig:
+        """Lazy load parser config to avoid circular imports"""
+        if self._parser_config is None:
+            from configuration.config_loader import ConfigLoader
+            self._parser_config = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
+        return self._parser_config
+
+    @parser_config.setter
+    def parser_config(self, value: ParserConfig):
+        """Allow setting parser config for testing"""
+        self._parser_config = value
+
+    @property
+    def msh_config_dict(self) -> Dict:
+        """Lazy load MSH config dictionary"""
+        if self._msh_config_dict is None:
+            self._msh_config_dict = self.parser_config.MSH
+        return self._msh_config_dict
+
+    @msh_config_dict.setter
+    def msh_config_dict(self, value: Dict):
+        """Allow setting msh config dict for testing"""
+        self._msh_config_dict = value
 
     def process_segment(self) -> tuple[List, bool]:
         all_errors = []
@@ -152,9 +175,35 @@ class OBRProcessor(Processor):
     def __init__(self, message_sequence: Sequence) -> tuple[list, bool]:
         self.message_segments:Sequence = message_sequence
         self.segment_type:str = 'OBR'
-        self.parser_config:ParserConfig = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
-        self.obr_config_dict:Dict = self.parser_config.OBR
         self.errors:List[str] = []
+
+        self._parser_config: ParserConfig = None
+        self._obr_config_dict: Dict = None
+
+    @property
+    def parser_config(self) -> ParserConfig:
+        """Lazy load parser config to avoid circular imports"""
+        if self._parser_config is None:
+            from configuration.config_loader import ConfigLoader
+            self._parser_config = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
+        return self._parser_config
+    
+    @parser_config.setter
+    def parser_config(self, value: ParserConfig):
+        """Allow setting parser config for testing"""
+        self._parser_config = value
+
+    @property
+    def obr_config_dict(self) -> Dict:
+        """Lazy load OBR config dictionary"""
+        if self._obr_config_dict is None:  
+            self._obr_config_dict = self.parser_config.OBR
+        return self._obr_config_dict
+    
+    @obr_config_dict.setter
+    def obr_config_dict(self, value: Dict):
+        """Allow setting obr config dict for testing"""
+        self._obr_config_dict = value
 
     def process_segment(self) -> tuple[List, bool]:
         all_errors = []
@@ -257,13 +306,41 @@ class OBXProcessor(Processor):
     def __init__(self, message_sequence: Sequence):
         self.message_segments:Sequence = message_sequence
         self.segment_type:str = 'OBX'
-        self.parser_config:ParserConfig = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
-        self.segment_config:SegmentsConfig = ConfigLoader.load_segments_config(ERBA_YAML_PATH)
         self.valid_obx:List[Sequence] = []
         self.valid_findings:List[Sequence] = [] 
         self.required_sequences = {}
         self.errors:List[str] = []
 
+        self.parser_config:ParserConfig = None
+        self.segment_config:SegmentsConfig = None
+
+
+    @property
+    def parser_config(self) -> ParserConfig:
+        """Lazy load parser config to avoid circular imports"""
+        if self._parser_config is None:
+            from configuration.config_loader import ConfigLoader
+            self._parser_config = ConfigLoader.load_parser_config(ERBA_YAML_PATH)
+        return self._parser_config
+    
+    @parser_config.setter
+    def parser_config(self, value: ParserConfig):
+        """Allow setting parser config for testing"""
+        self._parser_config = value
+
+    @property
+    def segment_config(self) -> SegmentsConfig:
+        """Lazy load segment config to avoid circular imports"""
+        if self._segment_config is None:
+            from configuration.config_loader import ConfigLoader
+            self._segment_config = ConfigLoader.load_segments_config(ERBA_YAML_PATH)
+        return self._segment_config
+    
+    @segment_config.setter
+    def segment_config(self, value: SegmentsConfig):
+        """Allow setting segment config for testing"""
+        self._segment_config = value
+    
     def process_segment(self) -> tuple[List, bool]:
         all_errors = []
 

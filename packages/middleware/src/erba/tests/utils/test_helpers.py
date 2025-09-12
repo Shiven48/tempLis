@@ -172,18 +172,6 @@ def count_segments_by_type(message: Message, segment_type: str) -> int:
     return len(message.segments(segment_type))
 
 
-def validate_datetime_format(datetime_str: str) -> bool:
-    """Validate HL7 datetime format (YYYYMMDDHHMMSS)"""
-    if not datetime_str or len(datetime_str) != 14:
-        return False
-    
-    try:
-        int(datetime_str)
-        return True
-    except ValueError:
-        return False
-
-
 def create_test_message_with_sequences(sequences: List[int]) -> str:
     """Create test HL7 message with specific OBX sequences"""
     base_message = """MSH|^~\\&|ELite 580|Erba|||20250828152838||ORU^R01|test123|P|2.3.1||||||UNICODE

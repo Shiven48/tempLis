@@ -9,7 +9,6 @@ from typing import (
     Callable
 )
 
-from configuration.config_loader import ConfigLoader
 from hl7 import (
     Message, 
     Segment
@@ -135,8 +134,7 @@ class MiddlewareEngine:
         self.yaml_path = ERBA_YAML_PATH
         self.api_service:APIService = get_api_service()
         
-        # Your analyzer configurations
-        self.analyzer_config:AnalyzerConfig = {}
+        self._analyzer_config = {}
         self.gui_loggers = {
             "gui_log_callback": None,
             "gui_error_callback": None,
@@ -153,27 +151,58 @@ class MiddlewareEngine:
         
         if not analyzer_name:
             raise ValueError("Analyzer name cannot be empty")
-    
+        
         if analyzer_name not in self.analyzer_config:
-            try:
-                self.analyzer_config[analyzer_name] = ConfigLoader.load_analyzer_config(self.yaml_path)
-            except Exception as e:
-                raise ValueError(f"Failed to load configuration for analyzer '{analyzer_name}': {e}")
-    
+            raise ValueError(f"Analyzer '{analyzer_name}' not found in configuration")
+        
         config: AnalyzerConfig = self.analyzer_config[analyzer_name]
+        logger.info(f"The analyzer config: {config}")
+        
+        if config is None:
+            raise ValueError(f"Analyzer configuration for '{analyzer_name}' is None")
+            
         self.handler = DataHandler(config)
+        self.current_analyzer = analyzer_name
         return config
+        
+    @property
+    def analyzer_config(self):
+        if not self._analyzer_config:
+            from configuration.config_loader import ConfigLoader
+            from pathlib import Path
+            import glob
+            analyzer_configs = {}
+
+            config_dir = Path(self.yaml_path).parent
+            config_files = glob.glob(str(config_dir / "*.yaml"))
+
+            for config_file in config_files:
+                try:
+                    config = ConfigLoader.load_analyzer_config(config_file)
+                    device_name = config.device.lower()
+                    analyzer_configs[device_name] = config
+                    logger.info(f"Loaded analyzer config: {device_name} from {config_file}")
+                except Exception as e:
+                    logger.warning(f"Failed to load config {config_file}: {e}")
+        
+            self._analyzer_config = analyzer_configs
+        return self._analyzer_config
+
+    @analyzer_config.setter 
+    def analyzer_config(self, value):
+        self._analyzer_config = value
         
     def set_analyzer_ready(self, analyzer_name: str):
         """Set analyzer as ready in shared state"""
-        if analyzer_name == self.current_analyzer:
-            self.analyzer_ready = True
-            if self.gui_log_callback:
-                self.gui_log_callback(f"[ENGINE] Analyzer {analyzer_name} marked as ready in shared state")
-    
-    def set_current_analyzer(self, analyzer_name: str):
-        """Set the current analyzer"""
-        self.current_analyzer = analyzer_name
+        try:
+            if analyzer_name == self.current_analyzer:
+                self.analyzer_ready = True
+                if self.gui_log_callback:
+                    self.gui_log_callback(f"[ENGINE] Analyzer {analyzer_name} marked as ready in shared state")
+                else: 
+                    self.gui_network_callback(f"Something went wrong")
+        except Exception as e:
+            logger.info(e)
 
 # Server actions
     async def handle_hl7_connection(self, reader: HL7StreamReader, writer: HL7StreamWriter):

@@ -2,7 +2,6 @@ import asyncio
 from configuration.logger import logger
 from erba.engine import MiddlewareEngine
 from erba.models import AnalyzerConfig, ErbaMessage
-from erba.scripts.test_endpoint import test_with_real_api_service
 
 handler = None  
 

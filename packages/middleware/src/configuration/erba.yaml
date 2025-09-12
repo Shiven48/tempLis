@@ -1,6 +1,6 @@
 # As the parser is simpler and does all the heavy lifting we will 
 # keep the parser key simple, just the field name and its index value
-device: "Erba"
+device: "erba"
 protocol: "HL7"
 transport:
   mode: "tcp"

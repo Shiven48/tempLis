@@ -7,12 +7,14 @@ from typing import (
     Union
 )
 import warnings
+from erba.constants import OBX_RANGE
 from erba.enums import (
     TransportMode,
     Protocol
 )
 from pydantic import (
-    BaseModel, 
+    BaseModel,
+    ConfigDict, 
     Field, 
     field_validator, 
     model_validator
@@ -38,7 +40,7 @@ class ParsingResult:
     findings: List[Any] = field(default_factory=list)
     error: Optional[str] = None
 
-# pydantic Models 
+# pydantic Models for config validation
 class TransportConfig(BaseModel):
     mode: TransportMode = Field(default=TransportMode.TCP)
     host: str = Field(default="127.0.0.1", min_length=1)
@@ -61,14 +63,13 @@ class ParserConfig(BaseModel):
     OBR: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict) 
     OBX: Optional[Dict[str, Union[int, str]]] = Field(default_factory=dict)
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
     @field_validator('OBX')
     @classmethod
     def validate_obx_fields(cls, v):
         """OBX segment cannot have more than 11 fields"""
-        if v and len(v) > 11:
+        if v and len(v) > OBX_RANGE:
             raise ValueError('OBX segment cannot have more than 12 field mappings')
         return v
     
@@ -107,33 +108,12 @@ class ParserConfig(BaseModel):
         if self.OBX:
             required_obx_fields = {'test_code', 'result_value'}
             obx_fields = set(self.OBX.keys())
+            print(f"OBX fields: {obx_fields}")
             missing_fields = required_obx_fields - obx_fields
             if missing_fields:
                 warnings.warn(f"OBX missing recommended fields: {missing_fields}")
         return self
 
-class AnalyzerConfig(BaseModel):
-    """Complete analyzer configuration with validation"""
-    device: str = Field(..., min_length=1, max_length=50)
-    protocol: Protocol
-    transport: TransportConfig
-    parser: Optional[ParserConfig] = Field(default_factory=ParserConfig)
-    retry_attempts: Optional[int] = Field(None, ge=0, le=10)
-    
-    @field_validator('device')
-    @classmethod
-    def validate_device_name(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("Device name cannot be empty or whitespace")
-        return v.strip()
-    
-    @model_validator(mode='after')
-    def validate_config_consistency(self):
-        """Cross-field validation"""
-        if self.transport.mode == TransportMode.SERIAL and self.transport.host != "127.0.0.1":
-            raise ValueError("Serial mode should use localhost/127.0.0.1")
-        return self
-    
 class SegmentsConfig(BaseModel):
     """Complete segments configuration with validation"""
     optional: str = Field(..., description="Optional segment range (e.g. '1-6')")
@@ -150,6 +130,29 @@ class SegmentsConfig(BaseModel):
             raise ValueError(f"Invalid format: {v}")
         return v
 
+class AnalyzerConfig(BaseModel):
+    """Complete analyzer configuration with validation"""
+    device: str = Field(..., min_length=1, max_length=50)
+    protocol: Protocol
+    transport: TransportConfig
+    parser: Optional[ParserConfig] = Field(default_factory=ParserConfig)
+    segments: SegmentsConfig = Field(default_factory=SegmentsConfig)
+    retry_attempts: Optional[int] = Field(None, ge=0, le=10)
+    
+    @field_validator('device')
+    @classmethod
+    def validate_device_name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("Device name cannot be empty or whitespace")
+        return v.strip()
+    
+    @model_validator(mode='after')
+    def validate_config_consistency(self):
+        """Cross-field validation"""
+        if self.transport.mode == TransportMode.SERIAL and self.transport.host != "127.0.0.1":
+            raise ValueError("Serial mode should use localhost/127.0.0.1")
+        return self
+
 class ErbaTestResult(BaseModel):
     test_code: str = Field(..., min_length=1)
     test_name: str = Field(..., min_length=1)
@@ -160,7 +163,7 @@ class ErbaTestResult(BaseModel):
 
 class ErbaMessage(BaseModel):
     message_id: str = Field(..., min_length=1)
-    test_results: List[ErbaTestResult] = Field(..., min_items=1)
+    test_results: List[ErbaTestResult] = Field(..., min_length=1)
     timestamp: str = Field(..., min_length=1)
     analyzer_id: str = Field(..., min_length=1)
     raw_message: List[Any] = Field(default_factory=list)

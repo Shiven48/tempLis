@@ -9,14 +9,13 @@ from erba.processor import (
     MSHProcessor, OBRProcessor, OBXProcessor, processFactory
 )
 from erba.models import ParserConfig, SegmentsConfig
-from tests.fixtures.valid_messages import COMPLETE_VALID_MESSAGE, MINIMAL_VALID_MESSAGE
-from tests.fixtures.invalid_messages import (
+from .fixtures.valid_messages import COMPLETE_VALID_MESSAGE, MINIMAL_VALID_MESSAGE
+from .fixtures.invalid_messages import (
     INVALID_MSH_DATETIME, INVALID_OBR_DATETIME, 
     INSUFFICIENT_OBX_FIELDS, WRONG_VALUE_TYPE_REQUIRED
 )
-from tests.utils.test_helpers import (
-    create_test_message_with_sequences, extract_obx_sequences,
-    validate_datetime_format
+from .utils.test_helpers import (
+    create_test_message_with_sequences, extract_obx_sequences
 )
 
 

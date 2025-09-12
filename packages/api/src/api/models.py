@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import List, Optional
 from sqlalchemy import JSON, ForeignKey, Column, Integer, String, Text, DateTime
 from sqlalchemy.orm import relationship
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from .database import Base
 
@@ -50,6 +50,8 @@ class TestResult(Base):
 # Pydantic Response Models
 class TestResultResponse(BaseModel):
     """Response model for test results"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     test_code: str
     test_name: str
@@ -57,13 +59,12 @@ class TestResultResponse(BaseModel):
     units: Optional[str] = None
     reference_range: Optional[str] = None
     flags: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
 
 
 class LabMessageResponse(BaseModel):
     """Response model for lab messages"""
+    model_config = ConfigDict(from_attributes=True)
+    
     id: int
     message_id: str
     analyzer_id: str
@@ -72,10 +73,6 @@ class LabMessageResponse(BaseModel):
     machine: str
     model: str
     test_results: List[TestResultResponse] = []
-    
-    class Config:
-        from_attributes = True
-
 
 class LabResultsCreateResponse(BaseModel):
     """Response model for creating lab results"""

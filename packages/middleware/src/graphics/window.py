@@ -271,6 +271,7 @@ class MiddlewareGUI:
             # Configure engine
             config:AnalyzerConfig = mw_engine.engine.select_analyzer(name)
             mw_engine.engine.set_analyzer_ready(name)
+            self.log_network_data(f"Config: {config}")
             
             self.log_info(f"[WINDOW] Loaded config for {config.device} ({config.protocol})")
             self.log_info("[WINDOW] Analyzer marked as ready in shared state")

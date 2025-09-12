@@ -1,3 +1,6 @@
+from pathlib import Path
+
+
 ENQ = b'\x05'
 ACK = b'\x06'
 NAK = b'\x15'
@@ -44,7 +47,7 @@ BUFFER_SIZE = 4096
 
 # While running the engine 
 # ERBA_YAML_PATH = 'packages/middleware/src/configuration/erba.yaml'
-ERBA_YAML_PATH = 'configuration/erba.yaml'
+ERBA_YAML_PATH = ERBA_YAML_PATH = Path(__file__).parent.parent / "configuration" / "erba.yaml"
 
 # While running the graphics
 ERBA_YAML_DIRECTORY = 'configuration'

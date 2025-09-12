@@ -3,7 +3,6 @@ from hl7 import Message, Sequence, parse
 from typing import Dict, List
 from erba.abstracts import Processor
 from configuration.logger import logger
-from configuration.config_loader import ConfigLoader
 from erba.models import ParserConfig, ParsingResult
 from erba.processor import processFactory
 
@@ -69,7 +68,7 @@ class ConfigurableHL7Parser:
             except (ValueError, IndexError, TypeError) as e:
                 logger.warning(f"Invalid sequence number in OBX segment: {e}")
                 continue
-        
+
         if not sequence_numbers:
             return 0, len(obx_segments)
         
@@ -90,14 +89,14 @@ class ConfigurableHL7Parser:
             self.result.parsing_errors.append(f"[Sequence Error] Sequence validation failed: {e}")
             return False
 
-    def _process_segments(self, message_segments:Message) -> tuple[list, bool]:
+    def _process_segments(self, message_segments: Message) -> tuple[list, bool]:
         """Get valid next sequences based on configuration ranges"""
         all_errors = []
         is_valid = True
         
         for segment_type in self.message_types:
-            sequence:Sequence = message_segments.segments(segment_type)
-            processor:Processor = processFactory(segment_type, sequence)
+            sequence: Sequence = message_segments.segments(segment_type)
+            processor: Processor = processFactory(segment_type, sequence)
             errors, valid = processor.process_segment()
         
             if not valid and errors:
@@ -107,15 +106,17 @@ class ConfigurableHL7Parser:
             if segment_type == 'OBX':
                 NM_result, IS_result = processor.parse()
                 if NM_result:
-                    self.result.test_results = NM_result 
+                    self.result.test_results = NM_result
                 if IS_result:
                     self.result.findings = IS_result
+                segment_parsing_result = {'NM_results': NM_result, 'IS_results': IS_result}
             else:
                 segment_parsing_result = processor.parse()
+
             self._store_segment_data(segment_type, segment_parsing_result)
         return all_errors, is_valid
     
-    def _store_segment_data(self, segment_type: str, parsed_segment: Dict) -> None:
+    def _store_segment_data(self, segment_type: str, parsed_segment: List[Dict]) -> None:
         """Store parsed segment in appropriate result section"""
         if segment_type == 'MSH':
             self.result.message_header = parsed_segment[0] if len(parsed_segment) == 1 else parsed_segment
@@ -129,6 +130,7 @@ class HL7Parser:
         """Initialize parser with configuration path"""
         self.yaml_config_path = yaml_config_path
         self.core_parser = None
+        self._parser_config: ParserConfig = None
         
         if yaml_config_path:
             self._initialize_parser()
@@ -136,9 +138,9 @@ class HL7Parser:
     def _initialize_parser(self):
         """Load configuration and initialize core parser"""
         try:
-            yaml_path = Path(self.yaml_config_path)
-            parser_config: ParserConfig = ConfigLoader.load_parser_config(yaml_path)
-        
+            self.yaml_path = Path(self.yaml_config_path)
+            parser_config = self.parser_config
+            
             if not any(parser_config.model_dump().values()):
                 raise ValueError(f"[Config Error] No parser segments configured in {self.yaml_config_path}")
             
@@ -146,6 +148,19 @@ class HL7Parser:
         except Exception as e:
             logger.error(f"[Parser Error] Initialization failed: {e}")
             raise
+
+    @property
+    def parser_config(self) -> ParserConfig:
+        """Lazy load parser configuration"""
+        if self._parser_config is None:
+            from configuration.config_loader import ConfigLoader
+            self._parser_config = ConfigLoader.load_parser_config(self.yaml_path)
+        return self._parser_config
+    
+    @parser_config.setter
+    def parser_config(self, value: ParserConfig):
+        """Allow setting parser config for testing"""
+        self._parser_config = value
     
     @staticmethod
     def parse(raw_data: str, yaml_config_path: str = None) -> ParsingResult:
@@ -162,10 +177,21 @@ class HL7Parser:
     def reload_config(self) -> None:
         """Reload configuration from file"""
         if self.yaml_config_path:
-            self._initialize_parser()
+            try:
+                self._parser_config = None
+                parser_config = self.parser_config
+            
+                if not any(parser_config.model_dump().values()):
+                    raise ValueError(f"[Config Error] No parser segments configured in {self.yaml_config_path}")
+            
+                self.core_parser = ConfigurableHL7Parser(parser_config)
+            
+            except Exception as e:
+                logger.error(f"[Parser Error] Config reload failed: {e}")
+                raise
         else:
             raise ValueError("[Config Path Error] No config path set for reloading")
     
     def get_available_segments(self) -> List[str]:
         """Get configured segments"""
-        return list(self.core_parser.parser_config.keys()) if self.core_parser else []
+        return list(self.core_parser.parser_config.model_dump().keys()) if self.core_parser else []

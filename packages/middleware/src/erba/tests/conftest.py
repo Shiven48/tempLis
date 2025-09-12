@@ -1,9 +1,9 @@
 """
 Pytest configuration and shared fixtures for HL7 middleware testing
 """
+from erba.engine import MiddlewareEngine
 import pytest
 import asyncio
-import os
 import sys
 from unittest.mock import Mock, AsyncMock, patch
 from pathlib import Path
@@ -12,7 +12,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from erba import (
-    engine, 
     DataHandler,
     HL7Parser, 
     ConfigurableHL7Parser,
@@ -41,7 +40,7 @@ def mock_analyzer_config():
     """Mock analyzer configuration"""
     return {
         "name": "test_analyzer",
-        "model": "ELite 580",
+        "model": "ELite 580", 
         "facility": "Erba",
         "version": "2.3.1"
     }
@@ -49,27 +48,26 @@ def mock_analyzer_config():
 
 @pytest.fixture
 def mock_parser_config():
-    """Mock parser configuration"""
+    """Mock parser configuration matching actual config structure"""
     return ParserConfig(
         MSH={
             "model": "3",
-            "facility": "4", 
-            "datetime_of_message": "7"
+            "machine": "4",            
+            "datetime_of_message": "7",
+            "message_id": "10"        
         },
         OBR={
-            "sample_id": "3",
-            "requested_timing": "6",
+            "requested_timing": "6",    
             "reservation_timing": "7"
         },
         OBX={
-            "sequence_number": "1",
             "value_type": "2",
-            "observation_identifier": "3-1",
-            "observation_value": "5",
+            "test_code": "3-0",        
+            "test_name": "3-1",         
+            "result_value": "5",       
             "units": "6",
-            "reference_ranges": "7",
-            "abnormal_flags": "8-1",
-            "observation_result_status": "11"
+            "reference_range": "7",    
+            "flags": "8"               
         }
     )
 
@@ -84,19 +82,19 @@ def mock_segments_config():
     )
 
 
-@pytest.fixture
+@pytest.fixture(scope="function")
 def engine_instance(event_loop):
     """Create a fresh MiddlewareEngine instance for testing"""
-    # Set the event loop for the current thread to avoid the RuntimeError
     asyncio.set_event_loop(event_loop)
     
-    with patch('middleware.engine.get_api_service') as mock_get_api:
+    with patch('erba.engine.get_api_service') as mock_get_api:
         # Mock the API service
         mock_api_service = AsyncMock()
         mock_api_service.send_analyzer_data.return_value = APIResult(success=True, error=None)
         mock_get_api.return_value = mock_api_service
                 
         # Initialize GUI callback attributes that are set in start_server_background
+        engine = MiddlewareEngine()
         engine.gui_log_callback = None
         engine.gui_error_callback = None
         engine.gui_network_callback = None
@@ -106,15 +104,14 @@ def engine_instance(event_loop):
         
         # Override some methods that we want to mock for testing
         engine._send_to_api = AsyncMock(return_value=APIResult(success=True, error=None))
-        # engine.read_all_available_messages = AsyncMock(return_value=[])
-        # engine.process_single_hl7_message = AsyncMock(return_value=True)
-        # engine._handle_batch_acknowledgments = AsyncMock()
-        engine._send_positive_acknowledgement = AsyncMock()
-        engine._send_negative_acknowledgement = AsyncMock()
-        # engine._send_acknowledgement = AsyncMock(return_value=(True, ""))
-        # engine._process_acknowledgement = Mock()
+        engine._send_positive_acknowledgement_to_analyzer = AsyncMock()
+        engine._log_gui_negative_acknowledgement = Mock()
+        engine._write_message_to_analyzer = AsyncMock(return_value=(True, ""))
+        engine._log_acknowledgement_to_gui = Mock()
+        engine._log_info_to_gui = Mock()
+        engine._log_error_to_gui = Mock()
         
-        # Mock the server lifecycle methods to avoid actual server creation
+        # Mocking server lifecycle
         engine._run_server = AsyncMock()
         engine.start_server_background = Mock()
         engine.stop_server_background = Mock()
@@ -138,7 +135,7 @@ def mock_gui_callbacks():
 @pytest.fixture
 def parser_instance():
     """Create HL7Parser instance with test configuration"""
-    with patch('middleware.parser.ConfigLoader.load_parser_config') as mock_loader:
+    with patch('configuration.config_loader.ConfigLoader.load_parser_config') as mock_loader:
         mock_config = ParserConfig(
             MSH={"model": "3", "facility": "4", "datetime_of_message": "7"},
             OBR={"sample_id": "3", "requested_timing": "6", "reservation_timing": "7"},
