@@ -88,12 +88,10 @@ def engine_instance(event_loop):
     asyncio.set_event_loop(event_loop)
     
     with patch('erba.engine.get_api_service') as mock_get_api:
-        # Mock the API service
         mock_api_service = AsyncMock()
         mock_api_service.send_analyzer_data.return_value = APIResult(success=True, error=None)
         mock_get_api.return_value = mock_api_service
                 
-        # Initialize GUI callback attributes that are set in start_server_background
         engine = MiddlewareEngine()
         engine.gui_log_callback = None
         engine.gui_error_callback = None
@@ -101,22 +99,25 @@ def engine_instance(event_loop):
         engine.gui_serial_callback = None
         engine.gui_middleware_ack_callback = None
         engine.gui_middleware_nack_callback = None
-        
-        # Override some methods that we want to mock for testing
-        engine._send_to_api = AsyncMock(return_value=APIResult(success=True, error=None))
-        engine._send_positive_acknowledgement_to_analyzer = AsyncMock()
-        engine._log_gui_negative_acknowledgement = Mock()
-        engine._write_message_to_analyzer = AsyncMock(return_value=(True, ""))
-        engine._log_acknowledgement_to_gui = Mock()
-        engine._log_info_to_gui = Mock()
-        engine._log_error_to_gui = Mock()
-        
-        # Mocking server lifecycle
-        engine._run_server = AsyncMock()
-        engine.start_server_background = Mock()
-        engine.stop_server_background = Mock()
-        
+                        
         yield engine
+
+
+@pytest.fixture
+def api_test_engine_instance(event_loop):
+    """Engine instance specifically for API testing - doesn't mock _send_to_api"""
+    asyncio.set_event_loop(event_loop)
+    
+    engine = MiddlewareEngine()
+    engine.gui_log_callback = None
+    engine.gui_error_callback = None
+    
+    yield engine
+
+@pytest.fixture
+def mock_api_service():
+    """Mock API service for testing"""
+    return AsyncMock()
 
 
 @pytest.fixture

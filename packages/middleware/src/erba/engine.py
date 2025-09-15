@@ -338,7 +338,6 @@ class MiddlewareEngine:
                 await writer.wait_closed()
             self._log_info_to_gui(f"[ENGINE] Connection with {self.peer} fully closed")
 
-
     def parse_message_structure(self, raw_message_bytes: bytes):
         """Debug function to understand message structure"""        
         logger.info(f"Total message length: {len(raw_message_bytes)}")
@@ -383,7 +382,7 @@ class MiddlewareEngine:
             if pos == -1:
                 break
             fs_cr_positions.append(pos)
-            pos += len(VT)
+            pos += len(FS + CR)
 
         return fs_cr_positions
 
@@ -497,6 +496,13 @@ class MiddlewareEngine:
             logger.error(f"Failed to send ACK to analyzer: {str(e)}")
             raise
 
+    async def _write_message_to_analyzer(self, response:Message, writer:HL7StreamWriter):
+        try:
+            writer.writemessage(response)
+            await writer.drain()
+        except Exception as e:
+            raise e
+
     def _log_gui_positive_acknowledgement(self, message: Message):
         """Log positive acknowledgement to GUI only"""
         try:
@@ -519,7 +525,7 @@ class MiddlewareEngine:
 
     def _log_acknowledgement_to_gui(self, ack_code: str, message: Message, reason: str = None):
         """Log acknowledgement message to GUI with proper formatting"""
-        if not (self.gui_log_callback and self.gui_middleware_ack_callback):
+        if not (self.gui_log_callback and self.gui_middleware_ack_callback and self.gui_middleware_nack_callback):
             logger.error("GUI log handlers are not configured properly")
             return
         
@@ -533,13 +539,6 @@ class MiddlewareEngine:
             self.gui_middleware_nack_callback(formatted_msg)
         else:
             logger.error(f"Unknown ack_code: {ack_code}")
-
-    async def _write_message_to_analyzer(self, response:Message, writer:HL7StreamWriter):
-        try:
-            writer.writemessage(response)
-            await writer.drain()
-        except Exception as e:
-            raise e
 
 # Wrapper on logging messages to gui or server logger(as fallback)
     def _log_info_to_gui(self, msg_str:str):

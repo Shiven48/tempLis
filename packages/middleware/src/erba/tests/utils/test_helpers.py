@@ -8,7 +8,7 @@ from unittest.mock import Mock, AsyncMock
 from hl7 import Message, parse as hl7_parse
 from hl7.mllp import HL7StreamReader, HL7StreamWriter
 
-from erba.models import ErbaMessage, APIResult, ParsingResult
+from erba.models import ErbaMessage, APIResult, ErbaTestResult, ParsingResult
 
 
 def create_mock_hl7_message(message_str: str) -> Message:
@@ -22,27 +22,24 @@ def create_mock_hl7_message(message_str: str) -> Message:
 def create_mock_erba_message(sample_id: str = "TEST001") -> ErbaMessage:
     """Create a mock ErbaMessage for testing"""
     return ErbaMessage(
-        sample_id=sample_id,
-        model="ELite 580",
-        facility="Erba",
-        datetime_of_message="20250828152838",
-        requested_timing="20250828010809",
-        reservation_timing="20250828010809",
+        message_id=sample_id,
         test_results=[
-            {
-                "sequence_number": "7",
-                "value_type": "NM",
-                "observation_identifier": "6690-2^WBC^LN",
-                "observation_value": "6.50",
-                "units": "10*3/uL",
-                "reference_ranges": "4.00-10.00",
-                "abnormal_flags": "~N",
-                "observation_result_status": "F"
-            }
+            ErbaTestResult(
+                test_code= "7",
+                test_name="CBC",
+                result_value = "6.50",
+                units="10*3/uL",
+                reference_range="4.00-10.00",
+                flags="~N",
+            )
         ],
-        findings=["PLT Abnormal Distribution"]
+        timestamp="20250828152838",
+        analyzer_id="ERBA",
+        raw_message=["raw message"],
+        findings=["PLT Abnormal Distribution"],
+        machine="Erba",
+        model="ELite 580"
     )
-
 
 def create_mock_api_result(success: bool = True, error: Optional[str] = None) -> APIResult:
     """Create a mock API result"""
