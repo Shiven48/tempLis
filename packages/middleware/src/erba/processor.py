@@ -487,6 +487,15 @@ class OBXProcessor(Processor):
         if current_sequence in self.required_sequences:
             self.errors.append(f"[Sequence Number Error] Important fields missing - Duplicate sequence {current_sequence}")
             return False
+        
+        try:
+            result_value = str(sequence[5]).strip() if len(sequence) > 5 else ""
+        except (IndexError, TypeError):
+            self.errors.append(f"[Result Value Error] Could not extract result value from sequence {current_sequence}")
+            return False
+
+        if not self._validate_numeric_result_value(result_value, current_sequence):
+            return False
     
         self.required_sequences[current_sequence] = sequence
         return True
@@ -534,6 +543,58 @@ class OBXProcessor(Processor):
             return True
         else:
             logger.error(f"[Sequence Error] Got invalid sequence type: {sequence_type}")
+            return False
+        
+    def _validate_numeric_result_value(self, result_value: str, sequence_number: int) -> bool:
+        """
+        Validates that the result value is a proper numeric value for NM type segments.
+        
+        Args:
+            result_value (str): The result value to validate
+            sequence_number (int): The sequence number for error reporting
+            
+        Returns:
+            bool: True if valid numeric value, False otherwise
+        """
+        if not result_value or result_value == "":
+            logger.warning(f"Empty result value in sequence {sequence_number}")
+            return True
+        
+        invalid_patterns = [
+            "**.*", "**", "*.*", "***", 
+            "-.--", "--.-", "---",
+            "N/A", "n/a", "NULL", "null"
+        ]
+        
+        if result_value in invalid_patterns:
+            self.errors.append(f"[Result Value Error] Invalid result value '{result_value}' in sequence {sequence_number} - contains invalid pattern")
+            return False
+        
+        if any(char.isalpha() for char in result_value):
+            valid_text_values = ["POSITIVE", "NEGATIVE", "DETECTED", "NOT DETECTED", "REACTIVE", "NON-REACTIVE"]
+            if result_value.upper() not in valid_text_values:
+                self.errors.append(f"[Result Value Error] Invalid result value '{result_value}' in sequence {sequence_number} - contains invalid characters")
+                return False
+        
+        try:
+            cleaned_value = result_value.replace(">", "").replace("<", "").replace("=", "").strip()
+            
+            if cleaned_value.count('.') > 1:
+                self.errors.append(f"[Result Value Error] Invalid result value '{result_value}' in sequence {sequence_number} - multiple decimal points")
+                return False
+            
+            float_value = float(cleaned_value)
+            
+            if float_value < -999999 or float_value > 999999:
+                logger.warning(f"Result value {result_value} in sequence {sequence_number} is outside typical lab range")
+            
+            return True
+            
+        except ValueError:
+            self.errors.append(f"[Result Value Error] Invalid numeric result value '{result_value}' in sequence {sequence_number} - cannot convert to number")
+            return False
+        except Exception as e:
+            self.errors.append(f"[Result Value Error] Unexpected error validating result value '{result_value}' in sequence {sequence_number}: {str(e)}")
             return False
 
     def parse(self) -> Union[List[dict], tuple[dict, dict]]:

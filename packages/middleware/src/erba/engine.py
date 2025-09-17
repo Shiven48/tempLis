@@ -144,6 +144,8 @@ class MiddlewareEngine:
             "gui_middleware_nack_callback": None
         }
         self.nack_sent = False
+        self._buffer:bytes = b''
+        self._partial = False
 
 # Analyzer state handlers
     def select_analyzer(self, analyzer_name: str) -> AnalyzerConfig:
@@ -226,13 +228,14 @@ class MiddlewareEngine:
                     # If there is no more data then break out of loop
                     if not block:
                         break
-                        
+                    
                     self._log_info_to_gui(f"[ENGINE] HL7 message received from {self.peer} - Handler processing data...")
                     
-                    # Validate MLLP boundaries
+                    # Find and store the message boundries like all VT, FSCRs and their positions 
                     self.parse_message_structure(block)
-                    is_valid, clean_messages, error_msg = self.validate_mllp_boundaries(block)
                     
+                    # Validate MLLP boundaries
+                    is_valid, clean_messages, error_msg = self.validate_mllp_boundaries(block)                    
                     if not is_valid:
                         self.gui_network_callback(block)
                         self._log_gui_negative_acknowledgement(message_or_error="", reason=f"MLLP validation failed: {error_msg}")
@@ -390,51 +393,223 @@ class MiddlewareEngine:
 
     def validate_mllp_boundaries(self, raw_message_bytes: bytes) ->  tuple[bool, List[bytes], Optional[str]]:
         """
-        Validates HL7 MLLP message boundaries with comprehensive structure checking:
-        - Validates VT/FS+CR count matching
-        - Ensures each VT is followed by MSH
-        - Handles both single messages and batch messages
-        - Extracts clean message content
+        Simplified MLLP boundary validation
+        """  
+        clean_messages = []  
         
-        Args:
-            raw_message_bytes (bytes): The raw message bytes from MLLP stream
-            
-        Returns:
-            tuple: (is_valid: bool, clean_messages: List[bytes], error_message: str or None)
-        """    
         if not raw_message_bytes:
             return False, [], "Empty message"
-    
-        if self.vt_count != self.fscr_count:
-            return False, [], f"MLLP frame mismatch: VT count ({self.vt_count}) != FS+CR count ({self.fscr_count})"
-    
-        if not self.validate_raw_message_structure(raw_message_bytes):
-            return False, [], "Invalid MLLP structure: VT not immediately followed by MSH segment"
-    
-        clean_messages = []
-    
-        try:
-            for i in range(len(self.vt_positions)):
-                vt_pos = self.vt_positions[i]
-                fscr_pos = self.fscr_positions[i]
+        
+        session_starts_with_vt = raw_message_bytes.startswith(VT)
+        
+        if self._partial and session_starts_with_vt:
+            logger.info("New session starts with VT - discarding partial buffer")
+            self._buffer = b''
+            self._partial = False
+        
+        if self._partial and not session_starts_with_vt:
+            logger.info("Attempting to complete partial message from previous session")
             
-                content_start = vt_pos + 1
-                content_end = fscr_pos
-
-                if content_start >= content_end:
-                    return False, [], f"Invalid frame {i+1}: VT at {vt_pos}, FS+CR at {fscr_pos}"
+            if self.fscr_count >= 1:
+                first_fscr_pos = self.fscr_positions[0]
+                
+                completion_data = raw_message_bytes[:first_fscr_pos]
+                completed_message_raw = self._buffer + completion_data
+                
+                if completed_message_raw.startswith(VT):
+                    completed_message = completed_message_raw[1:]
+                    if completed_message.startswith(b'MSH|'):
+                        clean_messages.append(completed_message)
+                        logger.info(f"Completed partial message: {len(completed_message)} bytes")
+                    else:
+                        return False, [], "Completed partial message doesn't start with MSH"
+                else:
+                    return False, [], "Partial buffer doesn't start with VT"
+                
+                self._buffer = b''
+                self._partial = False
+                
+                remaining_start = first_fscr_pos + 2
+                remaining_data = raw_message_bytes[remaining_start:]
+                
+                if remaining_data:
+                    self.parse_message_structure(remaining_data)
+                    
+                    is_valid, additional_messages, error = self.validate_mllp_boundaries(remaining_data)
+                    if is_valid:
+                        clean_messages.extend(additional_messages)
+                    return is_valid, clean_messages, error
+                
+                return True, clean_messages, None
+            else:
+                return False, [], "Partial message but no FSCR found to complete it"
+        
+        if self.vt_count == 0 and self.fscr_count == 1 and self._partial:
+            logger.info("Completing partial message from previous session")
+            self._buffer += raw_message_bytes
             
-                message_content:bytes = raw_message_bytes[content_start:content_end]
+            fscr_pos = self.fscr_positions[0]
+            completed_message = self._buffer[:len(self._buffer) - len(raw_message_bytes) + fscr_pos]
+            clean_messages.append(completed_message)
             
-                if not message_content.startswith(b'MSH|'):
-                    return False, [], f"Frame {i+1} content does not start with MSH segment"
-                clean_messages.append(message_content)
+            # Reset partial state
+            self._buffer = b''
+            self._partial = False
             
             return True, clean_messages, None
-        except IndexError as e:
-            return False, [], f"Index error during message extraction: {str(e)}"
-        except Exception as e:
-            return False, [], f"Unexpected error during validation: {str(e)}"
+    
+        if self.vt_count == self.fscr_count and self.vt_count > 0:
+            logger.info(f"Processing {self.vt_count} complete messages")
+            
+            if not self.validate_raw_message_structure(raw_message_bytes):
+                return False, [], "Invalid MLLP structure: VT not immediately followed by MSH segment"
+            
+            try:
+                for i in range(self.vt_count):
+                    vt_pos = self.vt_positions[i]
+                    fscr_pos = self.fscr_positions[i]
+                    
+                    content_start = vt_pos + 1
+                    content_end = fscr_pos
+                    
+                    if content_start >= content_end:
+                        return False, [], f"Invalid frame {i+1}: VT at {vt_pos}, FS+CR at {fscr_pos}"
+                    
+                    message_content = raw_message_bytes[content_start:content_end]
+                    
+                    if not message_content.startswith(b'MSH|'):
+                        return False, [], f"Frame {i+1} content does not start with MSH segment"
+                    
+                    clean_messages.append(message_content)
+                
+                return True, clean_messages, None
+                
+            except Exception as e:
+                return False, [], f"Error during message extraction: {str(e)}"
+    
+        if self.vt_count > 0 and self.vt_count > self.fscr_count:
+            logger.info("Message ends without FSCR - storing as partial")
+            
+            complete_messages = min(self.vt_count, self.fscr_count)
+            
+            if complete_messages > 0:
+                if not self.validate_raw_message_structure(raw_message_bytes):
+                    return False, [], "Invalid MLLP structure: VT not immediately followed by MSH segment"
+                
+                try:
+                    for i in range(complete_messages):
+                        vt_pos = self.vt_positions[i]
+                        fscr_pos = self.fscr_positions[i]
+                        
+                        content_start = vt_pos + 1
+                        content_end = fscr_pos
+                        
+                        message_content = raw_message_bytes[content_start:content_end]
+                        
+                        if not message_content.startswith(b'MSH|'):
+                            return False, [], f"Frame {i+1} content does not start with MSH segment"
+                        
+                        clean_messages.append(message_content)
+                        
+                except Exception as e:
+                    return False, [], f"Error processing complete messages: {str(e)}"
+        
+            # Store the incomplete message (from last unprocessed VT to end)
+            if self.fscr_count < self.vt_count:
+                last_incomplete_vt = self.vt_positions[self.fscr_count]  # First VT without matching FSCR
+                self._buffer = raw_message_bytes[last_incomplete_vt:]
+                self._partial = True
+                logger.info(f"Stored {len(self._buffer)} bytes as partial message")
+            
+            return True, clean_messages, None
+        
+        return False, [], f"Invalid message structure: VT count ({self.vt_count}), FS+CR count ({self.fscr_count})"
+
+
+    # def validate_mllp_boundaries(self, raw_message_bytes: bytes) ->  tuple[bool, List[bytes], Optional[str]]:
+    #     """
+    #     Validates HL7 MLLP message boundaries with comprehensive structure checking:
+    #     - Validates VT/FS+CR count matching
+    #     - Ensures each VT is followed by MSH
+    #     - Handles both single messages and batch messages
+    #     - Extracts clean message content
+        
+    #     Args:
+    #         raw_message_bytes (bytes): The raw message bytes from MLLP stream
+            
+    #     Returns:
+    #         tuple: (is_valid: bool, clean_messages: List[bytes], error_message: str or None)
+    #     """  
+    #     clean_messages = []  
+    #     if not raw_message_bytes:
+    #         return False, [], "Empty message"
+
+    #     if self.vt_count == 0 and self.fscr_count == 1:
+    #         if self._partial:
+    #             self._buffer += raw_message_bytes
+    #             fscr_idx = self.fscr_positions[0]
+    #             raw_message_bytes = raw_message_bytes[fscr_idx + 1:]
+    #             logger.info(f"This must give a full message: {self._buffer}")
+    #             clean_messages.append(self._buffer)
+    #             self._buffer = b''
+    #             return True, clean_messages, None
+    #         else:
+    #             pass
+        
+    #     loop_bound = self.vt_count
+    #     if self.vt_count > self.fscr_count:
+    #         logger.warning("VT is more than FSCR")
+    #         loop_bound = self.fscr_count
+    #         return False, [], f"MLLP frame mismatch: VT count ({self.vt_count}) != FS+CR count ({self.fscr_count})"
+
+    #     # case where multiple VT and FSCR are there after partial message starting
+    #     if self.vt_count < self.fscr_count:
+    #         logger.warning("FSCR is more than VT")
+    #         # if self._partial:
+    #         #     first_vt = self.vt_positions[0]
+    #         #     first_fscr = self.fscr_positions[0]
+
+    #             # if first_fscr < 
+    #             # Write conditions over here
+    #             # Finally dont forget to remove the partial data from the recieved message 
+    #             # cleaning is essential as we need to provide a 
+    #         # else:
+    #         return False, [], f"MLLP frame mismatch: VT count ({self.vt_count}) != FS+CR count ({self.fscr_count})"
+
+    #     # Make sure MSH is followed by VT
+    #     if not self.validate_raw_message_structure(raw_message_bytes):
+    #         return False, [], "Invalid MLLP structure: VT not immediately followed by MSH segment"
+
+    #     try:
+    #         for i in range(loop_bound):
+    #             vt_pos = self.vt_positions[i]
+    #             fscr_pos = self.fscr_positions[i]
+            
+    #             content_start = vt_pos + 1
+    #             content_end = fscr_pos
+
+    #             if content_start >= content_end:
+    #                 return False, [], f"Invalid frame {i+1}: VT at {vt_pos}, FS+CR at {fscr_pos}"
+            
+    #             message_content:bytes = raw_message_bytes[content_start:content_end]
+            
+    #             if not message_content.startswith(b'MSH|'):
+    #                 return False, [], f"Frame {i+1} content does not start with MSH segment"
+    #             clean_messages.append(message_content)
+
+    #         if raw_message_bytes:
+    #             logger.info("There is still some data remaining")
+    #             if raw_message_bytes.count(VT) == 1 and raw_message_bytes.count(FS + CR) == 0:
+    #                 start_idx = raw_message_bytes.rfind(VT)
+    #                 self._buffer += raw_message_bytes[start_idx:]
+    #                 logger.info(f"Partial Data collected: {self._buffer}")
+    #                 self._partial = True
+            
+    #         return True, clean_messages, None
+    #     except IndexError as e:
+    #         return False, [], f"Index error during message extraction: {str(e)}"
+    #     except Exception as e:
+    #         return False, [], f"Unexpected error during validation: {str(e)}"
 
     def validate_raw_message_structure(self, raw_message: bytes) -> bool:
         """
