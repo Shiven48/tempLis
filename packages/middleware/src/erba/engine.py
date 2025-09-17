@@ -241,6 +241,8 @@ class MiddlewareEngine:
                         ack_message = self.create_nack("Invalid MLLP Boundry")
                         should_send_ack = True
                         break
+                    else:
+                        logger.info(f"Received {len(clean_messages)} messages from analyzer")
                     
                     batch_success = True
                     for idx, msg in enumerate(clean_messages, 1):

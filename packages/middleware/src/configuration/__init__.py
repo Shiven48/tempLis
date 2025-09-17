@@ -1,4 +1,4 @@
-from pathlib import Path
+from erba.constants import DEFAULT_CONFIG_PATH
 from .config_loader import ConfigLoader
 from .logger import (
     GuiLoggerRegistryInstance, 
@@ -6,10 +6,6 @@ from .logger import (
     configure_logging,
     logger
 )
-
-CONFIG_DIR = Path(__file__).parent
-DEFAULT_CONFIG_PATH = CONFIG_DIR / "erba.yaml"
-
 default_config = None
 
 def get_default_config():
@@ -17,7 +13,7 @@ def get_default_config():
     global default_config
     if default_config is None:
         try:
-            from .config_loader import ConfigLoader  # Import only when needed
+            from .config_loader import ConfigLoader
             default_config = ConfigLoader.load_analyzer_config(DEFAULT_CONFIG_PATH)
         except FileNotFoundError:
             logger.warning(f"Default config file not found: {DEFAULT_CONFIG_PATH}")
@@ -31,8 +27,6 @@ __all__ = [
     # configuration utilities
     "ConfigLoader",
     "default_config",
-    "CONFIG_DIR",
-    "DEFAULT_CONFIG_PATH",
 
     # logger utilities
     "GuiLoggerRegistryInstance", 

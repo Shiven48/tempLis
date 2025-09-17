@@ -2,7 +2,7 @@ import os
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from erba import ERBA_YAML_DIRECTORY
+from erba.constants import ERBA_YAML_DIRECTORY
 import yaml
 
 from graphics.logs.logs_widget import TextWidgetLogger, LogWidget
@@ -222,7 +222,7 @@ class NetworkTab:
 
     def _apply_machine_configuration(self, machine_name):
         """Apply machine-specific configuration from YAML. Return True if successful."""
-        config_dir = "configuration"
+        config_dir = ERBA_YAML_DIRECTORY
         config = None
 
         try:

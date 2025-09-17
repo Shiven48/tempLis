@@ -46,11 +46,13 @@ port = 15200
 BUFFER_SIZE = 4096
 
 # While running the engine 
-# ERBA_YAML_PATH = 'packages/middleware/src/configuration/erba.yaml'
-ERBA_YAML_PATH = ERBA_YAML_PATH = Path(__file__).parent.parent / "configuration" / "erba.yaml"
-
+# ERBA_YAML_PATH = 'packages/middleware/src/profiles/erba.yaml'
+ERBA_YAML_DIRECTORY = Path(__file__).parent.parent / "profiles"
+DEFAULT_CONFIG_PATH = ERBA_YAML_DIRECTORY / "erba.yaml"
+ERBA_YAML_PATH = Path(__file__).parent.parent / "profiles" / "erba.yaml"
 # While running the graphics
-ERBA_YAML_DIRECTORY = 'configuration'
+# ERBA_YAML_DIRECTORY = "profiles"
+
 
 cbc_parameters = {
     "WBC": "White Blood Cell Count",
