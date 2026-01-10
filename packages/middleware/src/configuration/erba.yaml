@@ -1,0 +1,30 @@
+# As the parser is simpler and does all the heavy lifting we will 
+# keep the parser key simple, just the field name and its index value
+device: "Erba"
+protocol: "HL7"
+transport:
+  mode: "tcp"
+  host: "127.0.0.1"
+  port: 15200
+parser:
+  MSH:
+    model: "3"
+    machine: "4"
+    datetime_of_message: "7"
+    message_id: "10"
+  OBR:
+    requested_timing: "6"
+    reservation_timing: "7"
+  OBX:
+    value_type: "2"
+    test_code: "3-0"
+    test_name: "3-1"
+    result_value: "5"
+    units: "6"
+    reference_range: "7"
+    flags: "8"
+segments:
+  optional: '1-6'
+  required: '7-36'
+  findings: '37+'
+  
